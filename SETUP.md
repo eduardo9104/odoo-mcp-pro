@@ -2,6 +2,8 @@
 
 Step-by-step guide to connect Claude to your Odoo ERP.
 
+This guide covers three paths: a 5-minute local setup for personal use, and two cloud options for teams who want to share access via Claude.ai. Follow only the section that matches your situation — you don't need to read all of it.
+
 ## Choose your path
 
 ```
@@ -1063,3 +1065,11 @@ docker system prune -a --volumes
 # Check what's using space
 du -sh /var/lib/docker/*
 ```
+
+---
+
+## Need help?
+
+If you get stuck, open an issue on [GitHub](https://github.com/pantalytics/odoo-mcp-pro/issues) — describe what step you're on and paste any error messages.
+
+Built and maintained by [Pantalytics](https://pantalytics.com) — Odoo implementation partner in Utrecht, Netherlands.

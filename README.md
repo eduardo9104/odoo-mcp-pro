@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rutgerhofste/odoo-mcp-pro/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MPL%202.0-blue.svg" alt="License: MPL 2.0"/></a>
+  <a href="https://github.com/pantalytics/odoo-mcp-pro/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MPL%202.0-blue.svg" alt="License: MPL 2.0"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"/></a>
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-green.svg" alt="MCP Compatible"/></a>
   <a href="https://www.odoo.com/documentation/19.0/developer/reference/external_api.html"><img src="https://img.shields.io/badge/Odoo-19%2B%20JSON%2F2-714b67.svg" alt="Odoo 19+ JSON/2"/></a>
@@ -21,12 +21,21 @@
 
 ---
 
-> **"Show me all unpaid invoices over €5,000 from Q4"** — and Claude queries your Odoo instance directly.
-> No copy-pasting, no CSV exports, no switching tabs.
+Your ERP holds years of customer data, sales history, and operational records. Getting to it usually means the right menu, the right filter, the right export — and then still doing the thinking yourself.
+
+odoo-mcp-pro connects Claude directly to Odoo. Ask a question, get an answer. No exports, no switching tabs, no context switching.
+
+> **"Show me all unpaid invoices over €5,000 from Q4"** — Claude queries your Odoo instance directly and returns the results.
 
 <p align="center">
   <img src="docs/demo.gif" alt="Demo of odoo-mcp-pro" width="800"/>
 </p>
+
+## Who is this for?
+
+- **Odoo users** who want to query and update their ERP in plain English, from Claude Code or Claude Desktop
+- **Teams** who want to give multiple people AI access to Odoo via Claude.ai — without sharing API keys
+- **Odoo partners and implementers** building AI-augmented workflows on top of Odoo 19+
 
 ## Choose your setup
 
@@ -42,7 +51,7 @@
 
 ```bash
 # Install
-git clone https://github.com/rutgerhofste/odoo-mcp-pro.git
+git clone https://github.com/pantalytics/odoo-mcp-pro.git
 cd odoo-mcp-pro && uv venv && source .venv/bin/activate && uv pip install -e .
 
 # Connect to Claude Code
@@ -134,6 +143,8 @@ Claude.ai → OAuth 2.1 → Caddy (TLS) → MCP Server → Odoo
 
 **Can Claude.ai users see each other's data?** Each user gets their own OAuth token. The Odoo API key determines what data is accessible — Odoo enforces row-level security (ACLs and record rules) server-side.
 
+**Where does my data go?** Your Odoo data stays in your Odoo instance. The MCP server is a stateless proxy. For cloud deployments: you control the VPS and the Zitadel instance. Nothing is routed through Pantalytics infrastructure.
+
 See [architecture.md](architecture.md) for the full security model.
 
 ## How it compares
@@ -146,6 +157,7 @@ See [architecture.md](architecture.md) for the full security model.
 | **Claude.ai (web)** | Yes | Most: local only |
 | **Multi-instance** | Yes (Caddy routing) | No |
 | **No Odoo module needed** | Yes | Some require custom modules |
+| **Data stays on your infra** | Yes (self-hosted) | Varies |
 | **Test suite** | 35 files, 475+ tests | Varies |
 
 ## Development
@@ -161,15 +173,21 @@ See [CLAUDE.md](CLAUDE.md) for architecture details and coding conventions.
 
 ## Contributing
 
-Contributions are welcome! Fork the repo, create a feature branch, run `pytest tests/` and `ruff check .`, then open a PR.
+Contributions are welcome. Fork the repo, create a feature branch, run `pytest tests/` and `ruff check .`, then open a PR.
+
+If you find a bug or want a feature that would help your Odoo workflow, open an issue — we read them.
 
 ## License
 
-[Mozilla Public License 2.0](LICENSE)
+[Mozilla Public License 2.0](LICENSE) — the same license as Odoo Community.
 
 ## Built by Pantalytics
 
-**odoo-mcp-pro** is built by [Pantalytics](https://pantalytics.com) — an Odoo implementation partner in Utrecht, Netherlands. Need help connecting Claude to your Odoo instance? [Get in touch](https://pantalytics.com).
+**odoo-mcp-pro** is built and maintained by [Pantalytics](https://pantalytics.com), an Odoo implementation partner based in Utrecht, Netherlands.
+
+We built this because our own clients kept asking: *"Can't I just ask Claude about my Odoo data?"* The answer is yes — and we open-sourced the result so the broader Odoo community can benefit.
+
+We give direct, honest advice — including when Odoo isn't the right fit. If you're evaluating whether this setup makes sense for your organization, [get in touch](https://pantalytics.com). We're happy to help you think it through.
 
 ## Acknowledgments
 
@@ -178,7 +196,7 @@ Originally forked from [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-od
 ---
 
 <p align="center">
-  If odoo-mcp-pro is useful to you, consider giving it a star — it helps others find the project.
+  If odoo-mcp-pro saves you time, consider giving it a star — it helps others find the project.
 </p>
 
 <sub>Odoo is a registered trademark of <a href="https://www.odoo.com">Odoo S.A.</a> The MCP logo is used under the <a href="https://github.com/modelcontextprotocol/modelcontextprotocol">MIT License</a>. This project is not affiliated with or endorsed by Odoo S.A. or Anthropic.</sub>
