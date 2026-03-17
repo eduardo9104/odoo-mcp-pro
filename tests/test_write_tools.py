@@ -276,8 +276,8 @@ class TestWriteToolsIntegration:
     @pytest.mark.asyncio
     async def test_create_update_delete_cycle(self, real_config, real_tool_handler):
         """Test full create, update, delete cycle with real Odoo."""
-        if real_config.api_version != "json2" and real_config.yolo_mode != "true":
-            pytest.skip("Write integration test requires ODOO_YOLO=true or json2 mode")
+        if real_config.api_version != "json2":
+            pytest.skip("Write integration test requires json2 mode")
         handler = real_tool_handler
 
         # Create a test partner

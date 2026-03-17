@@ -705,7 +705,6 @@ instances:
     odoo_db: ""                            # empty for Odoo.sh
     odoo_api_key: "${ODOO_API_KEY}"
     api_version: json2
-    yolo: "true"                           # JSON/2 delegates ACLs to Odoo
 ```
 
 ### 4.4 Deploy

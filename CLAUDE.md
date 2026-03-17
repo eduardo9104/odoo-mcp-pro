@@ -52,7 +52,7 @@ See [architecture.md](architecture.md) for the full breakdown.
 | `mcp_server_odoo/config.py` | OdooConfig with `api_version` field |
 | `mcp_server_odoo/tools.py` | 6 MCP tools with smart field selection |
 | `mcp_server_odoo/resources.py` | 4 MCP resources (URI-based) |
-| `mcp_server_odoo/access_control.py` | YOLO / standard / JSON/2 hybrid access control |
+| `mcp_server_odoo/access_control.py` | Standard / JSON/2 access control |
 
 ## JSON/2 API key points
 
@@ -90,7 +90,6 @@ Results are cached per model for 5 minutes. Pass `connection=` when constructing
 | `ODOO_MCP_TRANSPORT` | `stdio`, `streamable-http` | `stdio` |
 | `ODOO_MCP_HOST` | bind address | `localhost` |
 | `ODOO_MCP_PORT` | port | `8000` |
-| `ODOO_YOLO` | `off`, `read`, `true` | `off` |
 
 ### OAuth 2.1 (optional, HTTP transport only)
 

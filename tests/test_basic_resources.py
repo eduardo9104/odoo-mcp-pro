@@ -312,8 +312,7 @@ class TestResourceIntegration:
         handler = register_resources(app, connection, access_controller, test_config)
 
         try:
-            # Use a fake model that fails in both modes: permission denied
-            # in standard mode, connection error in YOLO mode
+            # Use a fake model that should raise permission denied or validation error
             with pytest.raises((MCPPermissionError, ValidationError)):
                 await handler._handle_record_retrieval("nonexistent.model.xyz", "1")
 

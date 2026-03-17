@@ -101,15 +101,6 @@ class AccessController:
                 )
             return  # No client-side access control needed
 
-        # In YOLO mode, skip API key validation and MCP checks
-        if config.is_yolo_enabled:
-            mode_desc = "READ-ONLY" if config.yolo_mode == "read" else "FULL ACCESS"
-            logger.warning(
-                f"🚨 YOLO mode ({mode_desc}): Access control bypassed! "
-                f"All models accessible, MCP security disabled."
-            )
-            return  # Skip API validation
-
         # Validate API key is available for standard mode
         if not config.api_key:
             raise AccessControlError(
@@ -240,11 +231,6 @@ class AccessController:
             logger.debug("JSON/2 mode: All models are accessible")
             return []
 
-        # In YOLO mode, return empty list (all models are allowed)
-        if self.config.is_yolo_enabled:
-            logger.debug("YOLO mode: All models are accessible")
-            return []  # Empty list indicates all models allowed
-
         cache_key = "enabled_models"
 
         # Check cache
@@ -275,11 +261,6 @@ class AccessController:
         if self.config.api_version == "json2":
             return self._get_json2_model_permissions(model).enabled
 
-        # In YOLO mode, all models are enabled
-        if self.config.is_yolo_enabled:
-            logger.debug(f"YOLO mode: Model '{model}' is accessible")
-            return True
-
         try:
             enabled_models = self.get_enabled_models()
             return any(m["model"] == model for m in enabled_models)
@@ -302,29 +283,6 @@ class AccessController:
         # In JSON/2 mode: use Odoo's check_access_rights (works for all users)
         if self.config.api_version == "json2":
             return self._get_json2_model_permissions(model)
-
-        # In YOLO mode, return permissions based on mode level
-        if self.config.is_yolo_enabled:
-            if self.config.yolo_mode == "read":
-                # Read-only mode: only read operations allowed
-                return ModelPermissions(
-                    model=model,
-                    enabled=True,
-                    can_read=True,
-                    can_write=False,
-                    can_create=False,
-                    can_unlink=False,
-                )
-            else:  # yolo_mode == "true"
-                # Full access mode: all operations allowed
-                return ModelPermissions(
-                    model=model,
-                    enabled=True,
-                    can_read=True,
-                    can_write=True,
-                    can_create=True,
-                    can_unlink=True,
-                )
 
         cache_key = f"permissions_{model}"
 
@@ -371,32 +329,6 @@ class AccessController:
                 return False, f"Operation '{operation}' not allowed on model '{model}'"
             return True, None
 
-        # In YOLO mode, check based on mode level
-        if self.config.is_yolo_enabled:
-            # Define read operations
-            read_operations = {
-                "read",
-                "search",
-                "search_read",
-                "fields_get",
-                "count",
-                "search_count",
-            }
-
-            # Check operation based on mode
-            if operation in read_operations:
-                # Read operations always allowed in YOLO mode
-                return True, None
-            elif self.config.yolo_mode == "true":
-                # All operations allowed in full mode
-                return True, None
-            else:
-                # Write operations blocked in read-only mode
-                return False, (
-                    f"Write operation '{operation}' not allowed in read-only YOLO mode. "
-                    f"Only read operations are permitted for safety."
-                )
-
         try:
             # Standard mode: Get model permissions from MCP
             permissions = self.get_model_permissions(model)
@@ -441,11 +373,6 @@ class AccessController:
         # In JSON/2 mode, filter to models where user has at least read access
         if self.config.api_version == "json2":
             return [m for m in models if self._get_json2_model_permissions(m).can_read]
-
-        # In YOLO mode, all models are enabled
-        if self.config.is_yolo_enabled:
-            logger.debug(f"YOLO mode: All {len(models)} models are accessible")
-            return models  # Return all models unfiltered
 
         try:
             enabled_models = self.get_enabled_models()

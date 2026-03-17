@@ -72,23 +72,10 @@ class ModelInfo(BaseModel):
     )
 
 
-class YoloModeInfo(BaseModel):
-    """YOLO mode status and configuration."""
-
-    enabled: bool = Field(description="Whether YOLO mode is active")
-    level: str = Field(description="YOLO level: 'read' or 'true'")
-    description: str = Field(description="Human-readable mode description")
-    warning: str = Field(description="Security warning message")
-    operations: ModelOperations = Field(description="Global operation permissions in YOLO mode")
-
-
 class ModelsResult(BaseModel):
     """Result of listing available models."""
 
     models: List[ModelInfo] = Field(description="List of available models")
-    yolo_mode: Optional[YoloModeInfo] = Field(
-        default=None, description="YOLO mode info (only present when YOLO is enabled)"
-    )
     total: Optional[int] = Field(default=None, description="Total number of models")
     error: Optional[str] = Field(default=None, description="Error message if model listing failed")
 

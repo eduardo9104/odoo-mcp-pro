@@ -19,8 +19,6 @@ class TestFixesIntegration:
         config = Mock()
         config.default_limit = 10
         config.max_limit = 100
-        config.is_yolo_enabled = False  # Ensure standard mode for these tests
-        config.yolo_mode = "off"
 
         return OdooToolHandler(app, connection, access_controller, config)
 

@@ -51,7 +51,6 @@ claude mcp add -s user \
   -e ODOO_DB=your_database \
   -e ODOO_API_KEY=your_api_key \
   -e ODOO_API_VERSION=json2 \
-  -e ODOO_YOLO=true \
   -- odoo python -m mcp_server_odoo
 ```
 
@@ -71,8 +70,7 @@ Ask Claude: *"List the 5 most recent sale orders"* — if it returns data, you'r
         "ODOO_URL": "https://your-odoo.com",
         "ODOO_DB": "your_database",
         "ODOO_API_KEY": "your_api_key",
-        "ODOO_API_VERSION": "json2",
-        "ODOO_YOLO": "true"
+        "ODOO_API_VERSION": "json2"
       }
     }
   }
@@ -92,7 +90,6 @@ claude mcp add -s user \
   -e ODOO_DB=your_database \
   -e ODOO_USER=you@example.com \
   -e ODOO_API_KEY=your_api_key \
-  -e ODOO_YOLO=true \
   -- odoo uvx mcp-server-odoo
 ```
 

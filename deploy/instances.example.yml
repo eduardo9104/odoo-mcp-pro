@@ -38,11 +38,6 @@ instances:
     odoo_db: ""                              # empty for Odoo.sh (hostname selects DB)
     odoo_api_key: "${ODOO_API_KEY}"          # set actual value in .env, not here
     api_version: json2
-    yolo: "true"
-    # yolo controls which operations Claude can perform:
-    #   "off"  — only models in Odoo's /mcp/models/ endpoint (requires module)
-    #   "read" — read-only access to all models
-    #   "true" — full access (recommended for JSON/2: Odoo handles ACLs server-side)
 
   # Self-hosted Odoo (example — uncomment to use)
   # staging:
@@ -50,7 +45,6 @@ instances:
   #   odoo_db: staging                       # required for self-hosted
   #   odoo_api_key: "${STAGING_ODOO_API_KEY}"
   #   api_version: json2
-  #   yolo: "read"
 
   # Legacy Odoo 14-18 (XML-RPC, example — uncomment to use)
   # legacy:
@@ -58,4 +52,3 @@ instances:
   #   odoo_db: production
   #   odoo_api_key: "${LEGACY_ODOO_API_KEY}"
   #   api_version: xmlrpc
-  #   yolo: "off"

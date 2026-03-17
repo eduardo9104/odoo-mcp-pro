@@ -46,9 +46,8 @@ that exposes Odoo ERP data to AI assistants. It supports two deployment modes an
        │
        ├──▶ AccessController
        │       │
-       │       ├── YOLO mode: allow all / read-only / block writes
        │       ├── Standard mode: check /mcp/models/{model}/access
-       │       └── JSON/2 mode: hybrid Odoo ACL check (see below)
+       │       └── JSON/2 mode: Odoo ACL check via check_access_rights
        │
        ├──▶ OdooToolHandler (6 tools)
        │       search_records, get_record, list_models,
@@ -317,7 +316,6 @@ ODOO_URL=https://your-odoo.odoo.sh
 ODOO_API_KEY=...                          # server-side only
 ODOO_DB=...
 ODOO_API_VERSION=json2
-ODOO_YOLO=true                            # allow all operations (JSON/2 delegates ACLs to Odoo)
 ODOO_MCP_TRANSPORT=streamable-http
 ODOO_MCP_HOST=0.0.0.0
 ODOO_MCP_PORT=8000
@@ -342,7 +340,7 @@ OAUTH_EXPECTED_AUDIENCE=...               # optional: Zitadel app/project ID
 | `config.py` | `OdooConfig` dataclass, loaded from env vars |
 | `tools.py` | 6 MCP tools with smart field selection |
 | `resources.py` | 4 MCP resources (URI-based read access) |
-| `access_control.py` | YOLO / standard / JSON/2 access control |
+| `access_control.py` | Standard / JSON/2 access control |
 | `schemas.py` | Pydantic output models |
 | `formatters.py` | Result formatting utilities |
 | `error_handling.py` | Structured error handling |

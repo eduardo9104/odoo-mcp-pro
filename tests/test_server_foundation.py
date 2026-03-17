@@ -318,7 +318,6 @@ ODOO_MCP_LOG_LEVEL=DEBUG
                 "ODOO_MCP_LOG_LEVEL",
                 "ODOO_USER",
                 "ODOO_PASSWORD",
-                "ODOO_YOLO",
             ]:
                 monkeypatch.delenv(key, raising=False)
 
