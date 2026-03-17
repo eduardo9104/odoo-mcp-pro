@@ -68,26 +68,37 @@ class AccessController:
     MODELS_ENDPOINT = "/mcp/models"
     MODEL_ACCESS_ENDPOINT = "/mcp/models/{model}/access"
 
-    def __init__(self, config: OdooConfig, cache_ttl: int = CACHE_TTL):
+    def __init__(self, config: OdooConfig, connection: Any = None, cache_ttl: int = CACHE_TTL):
         """Initialize access controller.
 
         Args:
             config: OdooConfig with connection details and API key
+            connection: Optional OdooJSON2Connection — used to fetch real Odoo
+                        permissions in JSON/2 mode. When provided, model access
+                        reflects the API key user's actual Odoo ACLs.
             cache_ttl: Cache time-to-live in seconds
         """
         self.config = config
+        self.connection = connection
         self.cache_ttl = cache_ttl
         self._cache: Dict[str, CacheEntry] = {}
 
         # Parse base URL
         self.base_url = config.url.rstrip("/")
 
-        # In JSON/2 mode, Odoo enforces security via Bearer token ACLs
+        # In JSON/2 mode, permissions are fetched lazily from Odoo
         if config.api_version == "json2":
-            logger.info(
-                "JSON/2 mode: Access control delegated to Odoo server. "
-                "Odoo enforces ACLs, record rules, and field access on the API key's user."
-            )
+            if connection is not None:
+                logger.info(
+                    "JSON/2 mode: Permissions will be fetched from Odoo (ir.model.access) "
+                    "and cached for %d seconds.",
+                    cache_ttl,
+                )
+            else:
+                logger.info(
+                    "JSON/2 mode: No connection provided — access control delegated to "
+                    "Odoo server (403 on denied operations)."
+                )
             return  # No client-side access control needed
 
         # In YOLO mode, skip API key validation and MCP checks
@@ -178,6 +189,43 @@ class AccessController:
         self._cache.clear()
         logger.info("Cleared access control cache")
 
+    def _get_json2_model_permissions(self, model: str) -> "ModelPermissions":
+        """Fetch permissions for a single model via Odoo's check_access_rights.
+
+        Works for all users — no special admin rights required.
+        Calls check_access_rights for each CRUD operation and caches the result.
+        """
+        if self.connection is None:
+            return ModelPermissions(
+                model=model, enabled=True,
+                can_read=True, can_write=True, can_create=True, can_unlink=True,
+            )
+
+        cache_key = f"_j2_{model}"
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            return cached
+
+        can_read = self.connection.check_access_rights(model, "read")
+        can_write = self.connection.check_access_rights(model, "write")
+        can_create = self.connection.check_access_rights(model, "create")
+        can_unlink = self.connection.check_access_rights(model, "unlink")
+
+        perms = ModelPermissions(
+            model=model,
+            enabled=can_read,
+            can_read=can_read,
+            can_write=can_write,
+            can_create=can_create,
+            can_unlink=can_unlink,
+        )
+        self._set_cache(cache_key, perms)
+        logger.debug(
+            "JSON/2 permissions for %s: read=%s write=%s create=%s unlink=%s",
+            model, can_read, can_write, can_create, can_unlink,
+        )
+        return perms
+
     def get_enabled_models(self) -> List[Dict[str, str]]:
         """Get list of all MCP-enabled models.
 
@@ -223,9 +271,9 @@ class AccessController:
         Returns:
             True if model is enabled, False otherwise
         """
-        # In JSON/2 mode, Odoo handles access control server-side
+        # In JSON/2 mode, delegate to get_model_permissions
         if self.config.api_version == "json2":
-            return True
+            return self._get_json2_model_permissions(model).enabled
 
         # In YOLO mode, all models are enabled
         if self.config.is_yolo_enabled:
@@ -251,16 +299,9 @@ class AccessController:
         Raises:
             AccessControlError: If request fails
         """
-        # In JSON/2 mode, allow all operations (Odoo enforces ACLs server-side)
+        # In JSON/2 mode: use Odoo's check_access_rights (works for all users)
         if self.config.api_version == "json2":
-            return ModelPermissions(
-                model=model,
-                enabled=True,
-                can_read=True,
-                can_write=True,
-                can_create=True,
-                can_unlink=True,
-            )
+            return self._get_json2_model_permissions(model)
 
         # In YOLO mode, return permissions based on mode level
         if self.config.is_yolo_enabled:
@@ -323,8 +364,11 @@ class AccessController:
         Returns:
             Tuple of (allowed, error_message)
         """
-        # In JSON/2 mode, allow all (Odoo enforces server-side)
+        # In JSON/2 mode, check real Odoo permissions via check_access_rights
         if self.config.api_version == "json2":
+            permissions = self._get_json2_model_permissions(model)
+            if not permissions.can_perform(operation):
+                return False, f"Operation '{operation}' not allowed on model '{model}'"
             return True, None
 
         # In YOLO mode, check based on mode level
@@ -394,9 +438,9 @@ class AccessController:
         Returns:
             List of enabled model names
         """
-        # In JSON/2 mode, all models are accessible
+        # In JSON/2 mode, filter to models where user has at least read access
         if self.config.api_version == "json2":
-            return models
+            return [m for m in models if self._get_json2_model_permissions(m).can_read]
 
         # In YOLO mode, all models are enabled
         if self.config.is_yolo_enabled:

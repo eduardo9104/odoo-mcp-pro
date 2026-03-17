@@ -466,6 +466,134 @@ class TestAccessControlIntegration:
             print(f"{model}: read={perms.can_read}, write={perms.can_write}")
 
 
+class TestAccessControlJSON2:
+    """Tests for AccessController in JSON/2 mode using Odoo's check_access_rights."""
+
+    @pytest.fixture
+    def json2_config(self):
+        return OdooConfig(
+            url="http://localhost:8069",
+            api_key="test_key",
+            database="testdb",
+            api_version="json2",
+        )
+
+    def _connection(self, access_rights):
+        """Mock connection with check_access_rights based on a dict."""
+        conn = MagicMock()
+        conn.check_access_rights.side_effect = lambda model, op: access_rights.get(
+            (model, op), False
+        )
+        return conn
+
+    def test_init_with_connection(self, json2_config):
+        conn = MagicMock()
+        ctrl = AccessController(json2_config, connection=conn)
+        assert ctrl.connection is conn
+
+    def test_init_without_connection(self, json2_config):
+        ctrl = AccessController(json2_config)
+        assert ctrl.connection is None
+
+    def test_get_model_permissions_uses_check_access_rights(self, json2_config):
+        conn = self._connection({
+            ("res.partner", "read"): True,
+            ("res.partner", "write"): True,
+            ("res.partner", "create"): True,
+            ("res.partner", "unlink"): False,
+        })
+        ctrl = AccessController(json2_config, connection=conn)
+
+        perms = ctrl.get_model_permissions("res.partner")
+
+        assert perms.can_read is True
+        assert perms.can_write is True
+        assert perms.can_create is True
+        assert perms.can_unlink is False
+        assert conn.check_access_rights.call_count == 4
+
+    def test_get_model_permissions_no_access(self, json2_config):
+        conn = self._connection({})  # all False by default
+        ctrl = AccessController(json2_config, connection=conn)
+
+        perms = ctrl.get_model_permissions("sale.order")
+
+        assert perms.can_read is False
+        assert perms.enabled is False
+
+    def test_get_model_permissions_no_connection_allows_all(self, json2_config):
+        ctrl = AccessController(json2_config)  # no connection
+
+        perms = ctrl.get_model_permissions("res.partner")
+
+        assert perms.can_read is True
+        assert perms.can_write is True
+        assert perms.can_create is True
+        assert perms.can_unlink is True
+
+    def test_is_model_enabled_with_read(self, json2_config):
+        conn = self._connection({("res.partner", "read"): True})
+        ctrl = AccessController(json2_config, connection=conn)
+        assert ctrl.is_model_enabled("res.partner") is True
+
+    def test_is_model_enabled_without_read(self, json2_config):
+        conn = self._connection({})
+        ctrl = AccessController(json2_config, connection=conn)
+        assert ctrl.is_model_enabled("res.partner") is False
+
+    def test_check_operation_allowed(self, json2_config):
+        conn = self._connection({
+            ("res.partner", "read"): True,
+            ("res.partner", "write"): True,
+            ("res.partner", "create"): False,
+            ("res.partner", "unlink"): False,
+        })
+        ctrl = AccessController(json2_config, connection=conn)
+
+        allowed, msg = ctrl.check_operation_allowed("res.partner", "write")
+        assert allowed is True
+        assert msg is None
+
+        allowed, msg = ctrl.check_operation_allowed("res.partner", "unlink")
+        assert allowed is False
+        assert "unlink" in msg
+
+    def test_filter_enabled_models(self, json2_config):
+        conn = self._connection({
+            ("res.partner", "read"): True,
+            ("res.users", "read"): False,
+        })
+        ctrl = AccessController(json2_config, connection=conn)
+
+        result = ctrl.filter_enabled_models(["res.partner", "res.users", "sale.order"])
+
+        assert "res.partner" in result
+        assert "res.users" not in result
+        assert "sale.order" not in result
+
+    def test_permissions_cached_per_model(self, json2_config):
+        conn = self._connection({
+            ("res.partner", "read"): True,
+            ("res.partner", "write"): True,
+            ("res.partner", "create"): True,
+            ("res.partner", "unlink"): False,
+        })
+        ctrl = AccessController(json2_config, connection=conn)
+
+        ctrl.get_model_permissions("res.partner")
+        ctrl.get_model_permissions("res.partner")  # cached
+
+        # check_access_rights called exactly 4 times (not 8)
+        assert conn.check_access_rights.call_count == 4
+
+    def test_no_connection_filter_returns_all(self, json2_config):
+        ctrl = AccessController(json2_config)
+
+        result = ctrl.filter_enabled_models(["res.partner", "res.users", "sale.order"])
+
+        assert result == ["res.partner", "res.users", "sale.order"]
+
+
 if __name__ == "__main__":
     # Run integration tests when executed directly
     pytest.main([__file__, "-v", "-k", "Integration"])

@@ -444,6 +444,33 @@ class TestOdooJSON2ORM:
         conn._version = {"server_version": "19.0"}
         assert conn.get_server_version() == {"server_version": "19.0"}
 
+    def test_check_access_rights_allowed(self, connected_json2):
+        conn, mock_client = connected_json2
+        mock_client.post.return_value = _ok_response(True)
+
+        result = conn.check_access_rights("res.partner", "read")
+
+        assert result is True
+        body = mock_client.post.call_args[1]["json"]
+        assert body["operation"] == "read"
+        assert body["raise_exception"] is False
+
+    def test_check_access_rights_denied(self, connected_json2):
+        conn, mock_client = connected_json2
+        mock_client.post.return_value = _ok_response(False)
+
+        result = conn.check_access_rights("res.partner", "unlink")
+
+        assert result is False
+
+    def test_check_access_rights_returns_false_on_error(self, connected_json2):
+        conn, mock_client = connected_json2
+        mock_client.post.return_value = _error_response(404)
+
+        result = conn.check_access_rights("nonexistent.model", "read")
+
+        assert result is False
+
 
 # ---------------------------------------------------------------------------
 # Integration tests (require live Odoo 19 with json2)

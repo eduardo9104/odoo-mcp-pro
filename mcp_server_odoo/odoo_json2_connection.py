@@ -472,6 +472,29 @@ class OdooJSON2Connection:
         logger.info(f"Deleted {len(ids)} {model} record(s)")
         return result
 
+    def check_access_rights(self, model: str, operation: str) -> bool:
+        """Check if the current user has the given access right on a model.
+
+        Uses Odoo's built-in check_access_rights ORM method, which works for
+        all users regardless of admin status (no ir.model.access read rights needed).
+
+        Args:
+            model: Odoo model name (e.g., 'res.partner')
+            operation: One of 'read', 'write', 'create', 'unlink'
+
+        Returns:
+            True if access is granted, False if denied or on error
+        """
+        try:
+            result = self._call(
+                model, "check_access_rights",
+                operation=operation,
+                raise_exception=False,
+            )
+            return bool(result)
+        except OdooConnectionError:
+            return False
+
     def get_server_version(self) -> Optional[Dict[str, Any]]:
         """Get Odoo server version information.
 

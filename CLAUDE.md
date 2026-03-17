@@ -52,7 +52,7 @@ See [architecture.md](architecture.md) for the full breakdown.
 | `mcp_server_odoo/config.py` | OdooConfig with `api_version` field |
 | `mcp_server_odoo/tools.py` | 6 MCP tools with smart field selection |
 | `mcp_server_odoo/resources.py` | 4 MCP resources (URI-based) |
-| `mcp_server_odoo/access_control.py` | YOLO / standard / JSON/2 access control |
+| `mcp_server_odoo/access_control.py` | YOLO / standard / JSON/2 hybrid access control |
 
 ## JSON/2 API key points
 
@@ -64,6 +64,18 @@ See [architecture.md](architecture.md) for the full breakdown.
 - Responses are raw JSON (no RPC envelope)
 - Errors return proper HTTP status codes (401, 403, 404, 422, 500)
 - No Odoo module required — Odoo 19 handles ACLs server-side
+
+## JSON/2 access control
+
+In JSON/2 mode the server checks the user's actual Odoo permissions using
+`check_access_rights` — Odoo's own built-in method, works for all users:
+
+```
+POST /json/2/{model}/check_access_rights {"operation": "write", "raise_exception": false}
+```
+
+Results are cached per model for 5 minutes. Pass `connection=` when constructing
+`AccessController` in JSON/2 mode, otherwise it falls back to allow-all.
 
 ## Config
 

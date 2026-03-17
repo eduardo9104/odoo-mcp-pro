@@ -29,7 +29,7 @@ from .tools import register_tools
 logger = get_logger(__name__)
 
 # Server version
-SERVER_VERSION = "0.5.0"
+SERVER_VERSION = "0.6.0"
 GIT_COMMIT = os.environ.get("GIT_COMMIT", "unknown")
 
 
@@ -237,8 +237,8 @@ class OdooMCPServer:
 
                 logger.info(f"Successfully connected to Odoo at {self.config.url}")
 
-                # Initialize access controller
-                self.access_controller = AccessController(self.config)
+                # Initialize access controller — pass connection for JSON/2 permission fetching
+                self.access_controller = AccessController(self.config, connection=self.connection)
             except Exception as e:
                 context = ErrorContext(operation="connection_setup")
                 # Let specific errors propagate as-is
@@ -265,7 +265,7 @@ class OdooMCPServer:
     def _register_resources(self):
         """Register resource handlers after connection is established."""
         if not self.access_controller:
-            self.access_controller = AccessController(self.config)
+            self.access_controller = AccessController(self.config, connection=self.connection)
         self.resource_handler = register_resources(
             self.app, self.connection, self.access_controller, self.config
         )
@@ -274,7 +274,7 @@ class OdooMCPServer:
     def _register_tools(self):
         """Register tool handlers after connection is established."""
         if not self.access_controller:
-            self.access_controller = AccessController(self.config)
+            self.access_controller = AccessController(self.config, connection=self.connection)
         self.tool_handler = register_tools(
             self.app, self.connection, self.access_controller, self.config
         )

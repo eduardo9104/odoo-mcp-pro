@@ -48,7 +48,7 @@ that exposes Odoo ERP data to AI assistants. It supports two deployment modes an
        │       │
        │       ├── YOLO mode: allow all / read-only / block writes
        │       ├── Standard mode: check /mcp/models/{model}/access
-       │       └── JSON/2 mode: delegate to Odoo's ACLs
+       │       └── JSON/2 mode: hybrid Odoo ACL check (see below)
        │
        ├──▶ OdooToolHandler (6 tools)
        │       search_records, get_record, list_models,
@@ -209,6 +209,50 @@ resource server URL. If you set `OAUTH_EXPECTED_AUDIENCE`, it should match one o
 the Zitadel app/project IDs (visible in the token introspection response).
 
 To find the correct value, introspect an active token and check the `aud` array.
+
+---
+
+## Access control (JSON/2 mode)
+
+In JSON/2 mode the MCP server checks the actual Odoo ACLs of the API key user and
+enforces them locally — before sending a request to Odoo. This means:
+
+- `list_models` only returns models the user can read
+- Write/create/delete calls are blocked early with a clear error message
+- No unexpected 403s from Odoo mid-conversation
+
+### How it works
+
+For each model the server calls Odoo's built-in `check_access_rights` ORM method:
+
+```
+POST /json/2/{model}/check_access_rights
+{"operation": "read", "raise_exception": false}
+→ true / false
+```
+
+This works for **all** users without any special admin rights — it's the same check
+Odoo uses internally. Results are cached per model for 5 minutes.
+
+If no connection is provided, the server falls back to allow-all and lets Odoo
+return 403 directly on denied operations.
+
+### Permission check flow
+
+```
+Incoming MCP tool call (e.g. update_record on res.partner)
+    │
+    ▼
+AccessController.check_operation_allowed("res.partner", "write")
+    │
+    ├─ cached? ──yes──▶ use cached result
+    │
+    └─ no cache ──────▶ check_access_rights("res.partner", "write")
+                              │
+                              ▼
+                        True  → proceed to Odoo
+                        False → "Operation 'write' not allowed on res.partner"
+```
 
 ---
 
