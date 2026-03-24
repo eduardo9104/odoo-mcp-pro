@@ -513,33 +513,10 @@ def register_admin_routes(app, db_manager):
                 )
                 logger.info(f"User {user['email']} created connection to tenant {tenant_id}")
 
-            connections = await db_manager.get_user_connections_with_info(user["sub"])
-            return templates.TemplateResponse(
-                "setup.html",
-                {
-                    "request": request,
-                    "user": user,
-                    "connections": connections,
-                    "mcp_server_url": mcp_server_url,
-                    "success": "Connection saved successfully! Scroll down for instructions on connecting Claude.",
-                    "csrf_token": generate_csrf_token(user),
-                },
-            )
+            return RedirectResponse(url="/admin/setup", status_code=302)
         except Exception as e:
-            logger.error(f"Failed to create connection for {user['email']}: {e}")
-            connections = await db_manager.get_user_connections_with_info(user["sub"])
-            return templates.TemplateResponse(
-                "setup.html",
-                {
-                    "request": request,
-                    "user": user,
-                    "connections": connections,
-                    "mcp_server_url": mcp_server_url,
-                    "error": f"Failed to save connection: {e}",
-                    "form_data": {"odoo_url": odoo_url},
-                    "csrf_token": generate_csrf_token(user),
-                },
-            )
+            logger.error(f"Failed to save API key for {user['email']}: {e}")
+            return RedirectResponse(url="/admin/setup", status_code=302)
 
     @app.post("/setup/{mapping_id}/delete")
     @require_login
