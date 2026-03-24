@@ -99,39 +99,32 @@ class OdooMCPServer:
     def _register_oauth_metadata_route(
         self, issuer_url: str, resource_server_url: str | None = None
     ):
-        """Register OAuth discovery endpoints.
+        """Register custom PRM endpoint (RFC 9728).
 
-        Registers two endpoints:
-        1. /.well-known/oauth-authorization-server — tells clients where to
-           authenticate (Zitadel endpoints). Uses PKCE (S256) for public
-           clients like Claude.ai which cannot store a client_secret.
-        2. /.well-known/oauth-protected-resource (RFC 9728) — tells clients
-           what authorization this resource server requires.
+        The MCP SDK auto-generates a PRM at /.well-known/oauth-protected-resource/mcp
+        but with minimal scopes. This custom route at /.well-known/oauth-protected-resource
+        ensures the full scopes are advertised and points directly to Zitadel.
+
+        No custom /.well-known/oauth-authorization-server route is needed — Claude.ai
+        discovers Zitadel's endpoints via /.well-known/openid-configuration (the MCP SDK
+        client falls back to OIDC discovery when RFC 8414 metadata is unavailable).
         """
+        if not resource_server_url:
+            return
+
         from starlette.requests import Request
         from starlette.responses import JSONResponse
 
         @self.app.custom_route(
-            "/.well-known/oauth-authorization-server",
+            "/.well-known/oauth-protected-resource",
             methods=["GET"],
         )
-        async def oauth_metadata(request: Request) -> JSONResponse:
-            zitadel = issuer_url.rstrip("/")
-            # issuer must match what the PRM advertises as authorization_server
-            if resource_server_url:
-                from urllib.parse import urlparse
-
-                parsed = urlparse(resource_server_url)
-                issuer = f"{parsed.scheme}://{parsed.netloc}"
-            else:
-                issuer = zitadel
+        async def protected_resource_metadata(request: Request) -> JSONResponse:
+            issuer = issuer_url.rstrip("/")
             return JSONResponse(
                 {
-                    "issuer": issuer,
-                    "authorization_endpoint": f"{zitadel}/oauth/v2/authorize",
-                    "token_endpoint": f"{zitadel}/oauth/v2/token",
-                    "revocation_endpoint": f"{zitadel}/oauth/v2/revoke",
-                    "registration_endpoint": None,
+                    "resource": resource_server_url,
+                    "authorization_servers": [issuer],
                     "scopes_supported": [
                         "openid",
                         "profile",
@@ -139,41 +132,9 @@ class OdooMCPServer:
                         "offline_access",
                         "urn:zitadel:iam:user:resourceowner",
                     ],
-                    "response_types_supported": ["code"],
-                    "grant_types_supported": ["authorization_code", "refresh_token"],
-                    "token_endpoint_auth_methods_supported": ["none"],
-                    "code_challenge_methods_supported": ["S256"],
+                    "bearer_methods_supported": ["header"],
                 }
             )
-
-        if resource_server_url:
-
-            @self.app.custom_route(
-                "/.well-known/oauth-protected-resource",
-                methods=["GET"],
-            )
-            async def protected_resource_metadata(request: Request) -> JSONResponse:
-                """RFC 9728 — OAuth Protected Resource Metadata.
-
-                Tells clients what authorization is needed to access this
-                resource server, including the authorization server URL and
-                required scopes.
-                """
-                issuer = issuer_url.rstrip("/")
-                return JSONResponse(
-                    {
-                        "resource": resource_server_url,
-                        "authorization_servers": [issuer],
-                        "scopes_supported": [
-                            "openid",
-                            "profile",
-                            "email",
-                            "offline_access",
-                            "urn:zitadel:iam:user:resourceowner",
-                        ],
-                        "bearer_methods_supported": ["header"],
-                    }
-                )
 
     @staticmethod
     def _build_oauth_settings():
@@ -220,22 +181,11 @@ class OdooMCPServer:
         # Required scopes that every token must have (enforced by MCP middleware)
         required_scopes = ["openid"]
 
-        # The issuer_url in AuthSettings controls what the MCP SDK puts in the
-        # PRM's authorization_servers list. Claude follows this to find the
-        # /.well-known/oauth-authorization-server endpoint. We point it to our
-        # own server root (which hosts that endpoint), not directly to Zitadel
-        # (which only serves OIDC discovery, not RFC 8414 metadata).
-        if resource_server_url:
-            # e.g. https://mcp.pantalytics.com/mcp -> https://mcp.pantalytics.com
-            from urllib.parse import urlparse
-
-            parsed = urlparse(resource_server_url)
-            mcp_issuer_url = f"{parsed.scheme}://{parsed.netloc}"
-        else:
-            mcp_issuer_url = issuer_url
-
+        # Point authorization_servers directly to Zitadel. Claude.ai will
+        # discover Zitadel's OIDC config via /.well-known/openid-configuration
+        # (the MCP SDK falls back to OIDC discovery when RFC 8414 is unavailable).
         auth_settings = AuthSettings(
-            issuer_url=mcp_issuer_url,
+            issuer_url=issuer_url,
             resource_server_url=resource_server_url,
             required_scopes=required_scopes,
         )
