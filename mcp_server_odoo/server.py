@@ -116,13 +116,21 @@ class OdooMCPServer:
             methods=["GET"],
         )
         async def oauth_metadata(request: Request) -> JSONResponse:
-            issuer = issuer_url.rstrip("/")
+            zitadel = issuer_url.rstrip("/")
+            # issuer must match what the PRM advertises as authorization_server
+            if resource_server_url:
+                from urllib.parse import urlparse
+
+                parsed = urlparse(resource_server_url)
+                issuer = f"{parsed.scheme}://{parsed.netloc}"
+            else:
+                issuer = zitadel
             return JSONResponse(
                 {
                     "issuer": issuer,
-                    "authorization_endpoint": f"{issuer}/oauth/v2/authorize",
-                    "token_endpoint": f"{issuer}/oauth/v2/token",
-                    "revocation_endpoint": f"{issuer}/oauth/v2/revoke",
+                    "authorization_endpoint": f"{zitadel}/oauth/v2/authorize",
+                    "token_endpoint": f"{zitadel}/oauth/v2/token",
+                    "revocation_endpoint": f"{zitadel}/oauth/v2/revoke",
                     "registration_endpoint": None,
                     "scopes_supported": [
                         "openid",
@@ -214,10 +222,17 @@ class OdooMCPServer:
 
         # The issuer_url in AuthSettings controls what the MCP SDK puts in the
         # PRM's authorization_servers list. Claude follows this to find the
-        # OAuth metadata. We point it to our own server (which hosts the
-        # /.well-known/oauth-authorization-server endpoint that proxies to Zitadel),
-        # not directly to Zitadel (which doesn't serve RFC 8414 metadata).
-        mcp_issuer_url = resource_server_url or issuer_url
+        # /.well-known/oauth-authorization-server endpoint. We point it to our
+        # own server root (which hosts that endpoint), not directly to Zitadel
+        # (which only serves OIDC discovery, not RFC 8414 metadata).
+        if resource_server_url:
+            # e.g. https://mcp.pantalytics.com/mcp -> https://mcp.pantalytics.com
+            from urllib.parse import urlparse
+
+            parsed = urlparse(resource_server_url)
+            mcp_issuer_url = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            mcp_issuer_url = issuer_url
 
         auth_settings = AuthSettings(
             issuer_url=mcp_issuer_url,
