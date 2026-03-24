@@ -212,6 +212,7 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             "state": state,
             "code_challenge": code_challenge_b64,
             "code_challenge_method": "S256",
+            "prompt": "select_account",
         }
 
         auth_url = f"{issuer}/oauth/v2/authorize?{urlencode(params)}"
@@ -328,7 +329,24 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
 
     @app.get("/logout")
     async def admin_logout(request: Request):
-        """Clear session and redirect to login."""
+        """Clear session and redirect to Zitadel end session endpoint.
+
+        This ends both the local session (cookie) and the Zitadel session,
+        so the user can pick a different account on next login.
+        """
         response = RedirectResponse(url="/admin/login", status_code=302)
         clear_session(response)
+
+        # If Zitadel is configured, redirect to end_session endpoint
+        if issuer:
+            from urllib.parse import urlencode
+
+            post_logout_uri = f"{base_url}/admin/login"
+            end_session_url = (
+                f"{issuer}/oidc/v1/end_session?"
+                + urlencode({"post_logout_redirect_uri": post_logout_uri})
+            )
+            response = RedirectResponse(url=end_session_url, status_code=302)
+            clear_session(response)
+
         return response
