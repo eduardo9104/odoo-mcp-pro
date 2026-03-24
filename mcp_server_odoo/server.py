@@ -212,8 +212,15 @@ class OdooMCPServer:
         # Required scopes that every token must have (enforced by MCP middleware)
         required_scopes = ["openid"]
 
+        # The issuer_url in AuthSettings controls what the MCP SDK puts in the
+        # PRM's authorization_servers list. Claude follows this to find the
+        # OAuth metadata. We point it to our own server (which hosts the
+        # /.well-known/oauth-authorization-server endpoint that proxies to Zitadel),
+        # not directly to Zitadel (which doesn't serve RFC 8414 metadata).
+        mcp_issuer_url = resource_server_url or issuer_url
+
         auth_settings = AuthSettings(
-            issuer_url=issuer_url,
+            issuer_url=mcp_issuer_url,
             resource_server_url=resource_server_url,
             required_scopes=required_scopes,
         )
