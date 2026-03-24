@@ -913,10 +913,25 @@ class OdooToolHandler:
     async def _handle_list_models_tool(self) -> Dict[str, Any]:
         """Handle list models tool request with permissions."""
         try:
-            _connection, access_controller = await self._get_user_context()
+            connection, access_controller = await self._get_user_context()
             with perf_logger.track_operation("tool_list_models"):
                 # Get models from MCP access controller
                 models = access_controller.get_enabled_models()
+
+                # In JSON/2 mode, get_enabled_models() returns [] because Odoo
+                # handles ACLs server-side. Fetch models from ir.model instead.
+                if not models and hasattr(connection, "search_read"):
+                    try:
+                        ir_models = connection.search_read(
+                            "ir.model",
+                            [["transient", "=", False]],
+                            fields=["model", "name"],
+                            order="model asc",
+                        )
+                        models = [{"model": m["model"], "name": m["name"]} for m in ir_models]
+                    except Exception as e:
+                        logger.warning(f"Could not fetch models from ir.model: {e}")
+                        models = []
 
                 # Enrich with permissions for each model
                 enriched_models = []
@@ -937,7 +952,6 @@ class OdooToolHandler:
                         }
                         enriched_models.append(enriched_model)
                     except Exception as e:
-                        # If we can't get permissions for a model, include it with all operations false
                         logger.warning(f"Failed to get permissions for {model_name}: {e}")
                         enriched_model = {
                             "model": model_name,
