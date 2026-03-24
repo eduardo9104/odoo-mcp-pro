@@ -32,20 +32,21 @@ class TestZitadelTokenVerifier:
 
     def test_auth_header_construction(self, verifier):
         """Test that Basic Auth header is correctly constructed."""
-        expected = "Basic " + base64.b64encode(
-            b"test-client-id:test-client-secret"
-        ).decode()
+        expected = "Basic " + base64.b64encode(b"test-client-id:test-client-secret").decode()
         assert verifier._auth_header == expected
 
     @pytest.mark.asyncio
     async def test_active_token_returns_access_token(self, verifier):
         """Test that an active token returns a valid AccessToken."""
-        mock_response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid profile email",
-            "exp": 9999999999,
-        })
+        mock_response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid profile email",
+                "exp": 9999999999,
+            },
+        )
 
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
@@ -56,9 +57,68 @@ class TestZitadelTokenVerifier:
             result = await verifier.verify_token("valid-token")
 
         assert result is not None
+        # client_id contains the Zitadel client_id (no sub, no org)
         assert result.client_id == "claude-client"
         assert result.scopes == ["openid", "profile", "email"]
         assert result.expires_at == 9999999999
+
+    @pytest.mark.asyncio
+    async def test_active_token_with_org_packs_client_id(self, verifier):
+        """Test that org_id from resource owner claims is packed into client_id."""
+        mock_response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "sub": "user-123",
+                "client_id": "claude-client",
+                "scope": "openid profile email",
+                "exp": 9999999999,
+                "urn:zitadel:iam:user:resourceowner:id": "org-456",
+                "urn:zitadel:iam:user:resourceowner:name": "Acme Corp",
+            },
+        )
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mcp_server_odoo.oauth.httpx.AsyncClient", return_value=mock_client):
+            result = await verifier.verify_token("valid-token")
+
+        assert result is not None
+        # client_id should be packed as "sub:org_id"
+        assert result.client_id == "user-123:org-456"
+        # Downstream code can split on ":"
+        sub, org_id = result.client_id.split(":", 1)
+        assert sub == "user-123"
+        assert org_id == "org-456"
+
+    @pytest.mark.asyncio
+    async def test_active_token_without_org_uses_sub_only(self, verifier):
+        """Test that without org claims, client_id is just the sub."""
+        mock_response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "sub": "user-789",
+                "client_id": "claude-client",
+                "scope": "openid",
+                "exp": 9999999999,
+            },
+        )
+
+        mock_client = AsyncMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("mcp_server_odoo.oauth.httpx.AsyncClient", return_value=mock_client):
+            result = await verifier.verify_token("valid-token")
+
+        assert result is not None
+        assert result.client_id == "user-789"
+        assert ":" not in result.client_id
 
     @pytest.mark.asyncio
     async def test_inactive_token_returns_none(self, verifier):
@@ -163,16 +223,20 @@ class TestAudienceValidation:
     @pytest.mark.asyncio
     async def test_correct_audience_accepted(self, verifier):
         """Test that token with correct audience is accepted."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",
-            "aud": ["https://mcp.example.com"],
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",
+                "aud": ["https://mcp.example.com"],
+                "exp": 9999999999,
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("valid-token")
 
         assert result is not None
@@ -180,16 +244,20 @@ class TestAudienceValidation:
     @pytest.mark.asyncio
     async def test_wrong_audience_rejected(self, verifier):
         """Test that token intended for another service is rejected."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",
-            "aud": ["https://other-service.example.com"],
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",
+                "aud": ["https://other-service.example.com"],
+                "exp": 9999999999,
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("wrong-audience-token")
 
         assert result is None
@@ -197,16 +265,20 @@ class TestAudienceValidation:
     @pytest.mark.asyncio
     async def test_missing_audience_rejected(self, verifier):
         """Test that token without audience claim is rejected when required."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",
-            "exp": 9999999999,
-            # no 'aud' field
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",
+                "exp": 9999999999,
+                # no 'aud' field
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("no-audience-token")
 
         assert result is None
@@ -214,16 +286,20 @@ class TestAudienceValidation:
     @pytest.mark.asyncio
     async def test_audience_string_format(self, verifier):
         """Test that audience as string (not array) is handled correctly."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",
-            "aud": "https://mcp.example.com",  # string, not array
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",
+                "aud": "https://mcp.example.com",  # string, not array
+                "exp": 9999999999,
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("string-aud-token")
 
         assert result is not None
@@ -231,16 +307,20 @@ class TestAudienceValidation:
     @pytest.mark.asyncio
     async def test_multiple_audiences_accepted(self, verifier):
         """Test that token with multiple audiences is accepted if ours is included."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",
-            "aud": ["https://other.example.com", "https://mcp.example.com"],
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",
+                "aud": ["https://other.example.com", "https://mcp.example.com"],
+                "exp": 9999999999,
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("multi-aud-token")
 
         assert result is not None
@@ -255,12 +335,15 @@ class TestAudienceValidation:
             expected_audience=None,
         )
 
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",
+                "exp": 9999999999,
+            },
+        )
 
         mock_client = AsyncMock()
         mock_client.post.return_value = response
@@ -296,15 +379,19 @@ class TestScopeValidation:
     @pytest.mark.asyncio
     async def test_all_required_scopes_present(self, verifier):
         """Test that token with all required scopes is accepted."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid profile email",
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid profile email",
+                "exp": 9999999999,
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("valid-token")
 
         assert result is not None
@@ -312,15 +399,19 @@ class TestScopeValidation:
     @pytest.mark.asyncio
     async def test_missing_required_scope_rejected(self, verifier):
         """Test that token missing a required scope is rejected."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "scope": "openid",  # missing 'profile'
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "scope": "openid",  # missing 'profile'
+                "exp": 9999999999,
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("missing-scope-token")
 
         assert result is None
@@ -328,15 +419,19 @@ class TestScopeValidation:
     @pytest.mark.asyncio
     async def test_no_scopes_rejected(self, verifier):
         """Test that token with no scopes is rejected when scopes are required."""
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "exp": 9999999999,
-            # no 'scope' field
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "exp": 9999999999,
+                # no 'scope' field
+            },
+        )
 
-        with patch("mcp_server_odoo.oauth.httpx.AsyncClient",
-                    return_value=self._make_mock_client(response)):
+        with patch(
+            "mcp_server_odoo.oauth.httpx.AsyncClient", return_value=self._make_mock_client(response)
+        ):
             result = await verifier.verify_token("no-scope-token")
 
         assert result is None
@@ -351,11 +446,14 @@ class TestScopeValidation:
             required_scopes=None,
         )
 
-        response = _mock_introspection_response(200, {
-            "active": True,
-            "client_id": "claude-client",
-            "exp": 9999999999,
-        })
+        response = _mock_introspection_response(
+            200,
+            {
+                "active": True,
+                "client_id": "claude-client",
+                "exp": 9999999999,
+            },
+        )
 
         mock_client = AsyncMock()
         mock_client.post.return_value = response

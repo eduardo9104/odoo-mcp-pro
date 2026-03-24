@@ -19,7 +19,6 @@ import logging
 from typing import List, Optional
 
 import httpx
-
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 
 logger = logging.getLogger(__name__)
@@ -49,9 +48,9 @@ class ZitadelTokenVerifier(TokenVerifier):
         timeout: int = 10,
     ):
         self.introspection_url = introspection_url
-        self._auth_header = "Basic " + base64.b64encode(
-            f"{client_id}:{client_secret}".encode()
-        ).decode()
+        self._auth_header = (
+            "Basic " + base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        )
         self._expected_audience = expected_audience
         self._required_scopes = set(required_scopes) if required_scopes else set()
         self.timeout = timeout
@@ -80,9 +79,7 @@ class ZitadelTokenVerifier(TokenVerifier):
                 )
 
             if response.status_code != 200:
-                logger.warning(
-                    f"Introspection endpoint returned {response.status_code}"
-                )
+                logger.warning(f"Introspection endpoint returned {response.status_code}")
                 return None
 
             data = response.json()
@@ -113,23 +110,35 @@ class ZitadelTokenVerifier(TokenVerifier):
                 logger.warning(f"Token missing required scopes: {missing}")
                 return None
 
-            # Extract client_id from token data
-            token_client_id = data.get("client_id", "unknown")
+            # Extract user identity from token data
+            # Store Zitadel subject ID (user identity) in client_id field
+            # so tool handlers can identify the authenticated user via auth_context_var
+            zitadel_sub = data.get("sub", data.get("client_id", "unknown"))
+
+            # Extract Zitadel organization claims (resource owner)
+            # These are present when scope urn:zitadel:iam:user:resourceowner is requested
+            org_id = data.get("urn:zitadel:iam:user:resourceowner:id", "")
+            org_name = data.get("urn:zitadel:iam:user:resourceowner:name", "")
+
+            if org_id:
+                logger.debug(f"Token has org context: org_id={org_id}, org_name={org_name}")
+
+            # Pack sub + org_id into client_id for downstream access
+            # Tools/resources can split on ":" to get both values
+            client_id = f"{zitadel_sub}:{org_id}" if org_id else zitadel_sub
 
             # Extract expiry
             expires_at = data.get("exp")
 
             return AccessToken(
                 token=token,
-                client_id=token_client_id,
+                client_id=client_id,
                 scopes=scopes,
                 expires_at=expires_at,
             )
 
         except httpx.TimeoutException:
-            logger.error(
-                f"Token introspection timeout after {self.timeout}s"
-            )
+            logger.error(f"Token introspection timeout after {self.timeout}s")
             return None
         except Exception as e:
             logger.error(f"Token introspection failed: {e}")

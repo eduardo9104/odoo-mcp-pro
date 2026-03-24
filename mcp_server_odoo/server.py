@@ -4,8 +4,14 @@ This module provides the FastMCP server that exposes Odoo data
 and functionality through the Model Context Protocol.
 """
 
+from __future__ import annotations
+
 import os
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from .admin.db import DatabaseManager
+    from .registry import ConnectionRegistry
 
 from mcp.server import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
@@ -17,8 +23,8 @@ from .error_handling import (
     ErrorContext,
     error_handler,
 )
-from .logging_config import get_logger, logging_config, perf_logger
 from .exceptions import OdooConnectionError
+from .logging_config import get_logger, logging_config, perf_logger
 from .odoo_connection import OdooConnection
 from .odoo_json2_connection import OdooJSON2Connection
 from .performance import PerformanceManager
@@ -60,6 +66,10 @@ class OdooMCPServer:
         self.performance_manager: Optional[PerformanceManager] = None
         self.resource_handler = None
         self.tool_handler = None
+
+        # Multi-tenant registry (HTTP mode with admin panel)
+        self.db_manager: Optional[DatabaseManager] = None
+        self.registry: Optional[ConnectionRegistry] = None
 
         # Configure OAuth if environment variables are set
         auth_settings, token_verifier = self._build_oauth_settings()
@@ -107,20 +117,29 @@ class OdooMCPServer:
         )
         async def oauth_metadata(request: Request) -> JSONResponse:
             issuer = issuer_url.rstrip("/")
-            return JSONResponse({
-                "issuer": issuer,
-                "authorization_endpoint": f"{issuer}/oauth/v2/authorize",
-                "token_endpoint": f"{issuer}/oauth/v2/token",
-                "revocation_endpoint": f"{issuer}/oauth/v2/revoke",
-                "registration_endpoint": None,
-                "scopes_supported": ["openid", "profile", "email", "offline_access"],
-                "response_types_supported": ["code"],
-                "grant_types_supported": ["authorization_code", "refresh_token"],
-                "token_endpoint_auth_methods_supported": ["none"],
-                "code_challenge_methods_supported": ["S256"],
-            })
+            return JSONResponse(
+                {
+                    "issuer": issuer,
+                    "authorization_endpoint": f"{issuer}/oauth/v2/authorize",
+                    "token_endpoint": f"{issuer}/oauth/v2/token",
+                    "revocation_endpoint": f"{issuer}/oauth/v2/revoke",
+                    "registration_endpoint": None,
+                    "scopes_supported": [
+                        "openid",
+                        "profile",
+                        "email",
+                        "offline_access",
+                        "urn:zitadel:iam:user:resourceowner",
+                    ],
+                    "response_types_supported": ["code"],
+                    "grant_types_supported": ["authorization_code", "refresh_token"],
+                    "token_endpoint_auth_methods_supported": ["none"],
+                    "code_challenge_methods_supported": ["S256"],
+                }
+            )
 
         if resource_server_url:
+
             @self.app.custom_route(
                 "/.well-known/oauth-protected-resource",
                 methods=["GET"],
@@ -133,12 +152,20 @@ class OdooMCPServer:
                 required scopes.
                 """
                 issuer = issuer_url.rstrip("/")
-                return JSONResponse({
-                    "resource": resource_server_url,
-                    "authorization_servers": [issuer],
-                    "scopes_supported": ["openid", "profile", "email", "offline_access"],
-                    "bearer_methods_supported": ["header"],
-                })
+                return JSONResponse(
+                    {
+                        "resource": resource_server_url,
+                        "authorization_servers": [issuer],
+                        "scopes_supported": [
+                            "openid",
+                            "profile",
+                            "email",
+                            "offline_access",
+                            "urn:zitadel:iam:user:resourceowner",
+                        ],
+                        "bearer_methods_supported": ["header"],
+                    }
+                )
 
     @staticmethod
     def _build_oauth_settings():
@@ -174,9 +201,7 @@ class OdooMCPServer:
         if not client_secret:
             missing.append("ZITADEL_CLIENT_SECRET")
         if missing:
-            raise ConfigurationError(
-                f"OAUTH_ISSUER_URL is set but missing: {', '.join(missing)}"
-            )
+            raise ConfigurationError(f"OAUTH_ISSUER_URL is set but missing: {', '.join(missing)}")
 
         from mcp.server.auth.settings import AuthSettings
 
@@ -280,6 +305,18 @@ class OdooMCPServer:
         )
         logger.info("Registered MCP tools")
 
+    def _register_resources_with_registry(self):
+        """Register resource handlers with ConnectionRegistry (multi-tenant)."""
+        self.resource_handler = register_resources(
+            self.app, config=self.config, registry=self.registry
+        )
+        logger.info("Registered MCP resources (multi-tenant)")
+
+    def _register_tools_with_registry(self):
+        """Register tool handlers with ConnectionRegistry (multi-tenant)."""
+        self.tool_handler = register_tools(self.app, config=self.config, registry=self.registry)
+        logger.info("Registered MCP tools (multi-tenant)")
+
     async def run_stdio(self):
         """Run the server using stdio transport.
 
@@ -325,19 +362,39 @@ class OdooMCPServer:
     async def run_http(self, host: str = "localhost", port: int = 8000):
         """Run the server using streamable HTTP transport.
 
+        Two modes:
+        - Single-tenant: Uses a single Odoo connection (env vars)
+        - Multi-tenant: Uses ConnectionRegistry + DatabaseManager (DATABASE_URL set)
+
         When OAuth env vars are configured, all requests require a valid
-        Bearer token (validated via Zitadel introspection). The Odoo
-        connection is always configured via server-side env vars.
+        Bearer token (validated via Zitadel introspection).
 
         Args:
             host: Host to bind to
             port: Port to bind to
         """
         try:
+            database_url = os.getenv("DATABASE_URL", "").strip()
+
             with perf_logger.track_operation("server_startup"):
-                self._ensure_connection()
-                self._register_resources()
-                self._register_tools()
+                if database_url:
+                    # Multi-tenant mode: use ConnectionRegistry
+                    from .admin.db import DatabaseManager
+                    from .registry import ConnectionRegistry
+
+                    logger.info("Starting in multi-tenant mode (DATABASE_URL configured)")
+                    self.db_manager = DatabaseManager(database_url)
+                    await self.db_manager.connect()
+                    self.registry = ConnectionRegistry(self.db_manager)
+
+                    # Register tools/resources with registry (no single connection)
+                    self._register_resources_with_registry()
+                    self._register_tools_with_registry()
+                else:
+                    # Single-tenant mode: single connection from env vars
+                    self._ensure_connection()
+                    self._register_resources()
+                    self._register_tools()
 
             logger.info(f"Starting MCP server with HTTP transport on {host}:{port}...")
 
@@ -351,8 +408,43 @@ class OdooMCPServer:
                     enable_dns_rebinding_protection=False
                 )
 
-            # Use FastMCP's built-in streamable HTTP (includes OAuth middleware if configured)
-            await self.app.run_streamable_http_async()
+            # Build ASGI app: MCP + optional admin panel
+            mcp_asgi = self.app.streamable_http_app()
+
+            if database_url:
+                # Multi-tenant: mount admin panel alongside MCP
+                from starlette.applications import Starlette
+                from starlette.routing import Mount
+
+                from .admin.app import create_admin_app
+
+                issuer_url = os.getenv("OAUTH_ISSUER_URL", "").strip()
+                admin_app = create_admin_app(
+                    db_manager=self.db_manager,
+                    registry=self.registry,
+                    zitadel_issuer_url=issuer_url,
+                )
+                combined = Starlette(
+                    routes=[
+                        Mount("/admin", app=admin_app, name="admin"),
+                        Mount("/", app=mcp_asgi, name="mcp"),
+                    ]
+                )
+                logger.info("Admin panel mounted at /admin")
+                asgi_app = combined
+            else:
+                asgi_app = mcp_asgi
+
+            import uvicorn
+
+            config = uvicorn.Config(
+                asgi_app,
+                host=host,
+                port=port,
+                log_level=self.app.settings.log_level.lower(),
+            )
+            server = uvicorn.Server(config)
+            await server.serve()
 
         except KeyboardInterrupt:
             logger.info("Server interrupted by user")
@@ -363,8 +455,14 @@ class OdooMCPServer:
             context = ErrorContext(operation="server_run_http")
             error_handler.handle_error(e, context=context)
         finally:
-            # Always cleanup connection
+            # Cleanup
             self._cleanup_connection()
+            if self.registry:
+                self.registry.close_all()
+                self.registry = None
+            if self.db_manager:
+                await self.db_manager.close()
+                self.db_manager = None
 
     def get_capabilities(self) -> Dict[str, Dict[str, bool]]:
         """Get server capabilities.

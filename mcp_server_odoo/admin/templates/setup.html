@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Odoo MCP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950">
+    <div class="min-h-full flex flex-col">
+        <!-- Top bar -->
+        <div class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+            <div class="max-w-3xl mx-auto flex items-center justify-between h-16 px-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                        </svg>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-white">Odoo MCP</span>
+                </div>
+                {% if user %}
+                <div class="flex items-center space-x-4">
+                    <div class="text-right">
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</span>
+                        {% if user.org_name %}
+                        <span class="block text-xs text-gray-400 dark:text-gray-500">{{ user.org_name }}</span>
+                        {% endif %}
+                    </div>
+                    <a href="/admin/logout" class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="flex-1 flex items-start justify-center py-8 px-6">
+            <div class="w-full max-w-3xl space-y-6">
+
+                <!-- Flash messages -->
+                {% if error %}
+                <div class="rounded-lg bg-red-50 dark:bg-red-950 p-4 border border-red-200 dark:border-red-800">
+                    <div class="flex">
+                        <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p class="ml-3 text-sm text-red-700 dark:text-red-300">{{ error }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if success %}
+                <div class="rounded-lg bg-green-50 dark:bg-green-950 p-4 border border-green-200 dark:border-green-800">
+                    <div class="flex">
+                        <svg class="h-5 w-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <p class="ml-3 text-sm text-green-700 dark:text-green-300">{{ success }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Welcome header -->
+                {% if not connections %}
+                <div class="text-center">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome to Odoo MCP</h1>
+                    <p class="mt-2 text-gray-500 dark:text-gray-400">Connect your Odoo instance to use it with Claude AI. Follow the steps below to get started.</p>
+                </div>
+                {% endif %}
+
+                <!-- Progress steps (show for users without connections) -->
+                {% if not connections %}
+                <div class="flex items-center justify-center space-x-4 text-sm">
+                    <div class="flex items-center">
+                        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold">1</span>
+                        <span class="ml-2 font-medium text-gray-900 dark:text-white">Create API Key</span>
+                    </div>
+                    <div class="w-8 h-px bg-gray-300 dark:bg-gray-700"></div>
+                    <div class="flex items-center">
+                        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold">2</span>
+                        <span class="ml-2 text-gray-500 dark:text-gray-400">Connect</span>
+                    </div>
+                    <div class="w-8 h-px bg-gray-300 dark:bg-gray-700"></div>
+                    <div class="flex items-center">
+                        <span class="flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold">3</span>
+                        <span class="ml-2 text-gray-500 dark:text-gray-400">Use with Claude</span>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Organization info (if available) -->
+                {% if user_tenant %}
+                <div class="rounded-lg bg-indigo-50 dark:bg-indigo-950 p-4 border border-indigo-200 dark:border-indigo-800">
+                    <div class="flex">
+                        <svg class="h-5 w-5 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                                Your organization: {{ user_tenant.name }}
+                            </p>
+                            <p class="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+                                {{ user_tenant.odoo_url }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Step 1: How to create an API Key (collapsible, open by default if no connections) -->
+                <div class="bg-white dark:bg-gray-900 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800">
+                    <details {% if not connections %}open{% endif %}>
+                        <summary class="px-6 py-4 cursor-pointer select-none border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                            <div class="inline-flex items-center">
+                                <span class="flex items-center justify-center w-6 h-6 rounded-full {% if not connections %}bg-indigo-600 text-white{% else %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300{% endif %} text-xs font-bold mr-3">
+                                    {% if connections %}
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                    {% else %}1{% endif %}
+                                </span>
+                                <h2 class="text-base font-semibold text-gray-900 dark:text-white">How to Create an Odoo API Key</h2>
+                            </div>
+                        </summary>
+                        <div class="px-6 py-5">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                Each user needs their own API key. The key determines what data you can access in Odoo &mdash; your existing Odoo permissions apply.
+                            </p>
+                            <ol class="space-y-4 text-sm">
+                                <li class="flex items-start">
+                                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">1</span>
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">Log in to your Odoo instance</p>
+                                        <p class="text-gray-500 dark:text-gray-400 mt-0.5">
+                                            {% if user_tenant %}
+                                            Go to <a href="{{ user_tenant.odoo_url }}" target="_blank" rel="noopener" class="text-indigo-600 dark:text-indigo-400 hover:underline">{{ user_tenant.odoo_url }}</a>
+                                            {% else %}
+                                            Go to your Odoo URL (e.g. https://yourcompany.odoo.com)
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">2</span>
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">Open your profile</p>
+                                        <p class="text-gray-500 dark:text-gray-400 mt-0.5">Click your avatar (top-right) &rarr; <strong>My Profile</strong>, or go to <strong>Settings</strong> &rarr; <strong>Users</strong> &rarr; click your name.</p>
+                                    </div>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">3</span>
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">Go to the Account Security tab</p>
+                                        <p class="text-gray-500 dark:text-gray-400 mt-0.5">Scroll down or click the <strong>Account Security</strong> tab on your profile page.</p>
+                                    </div>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">4</span>
+                                    <div>
+                                        <p class="font-medium text-gray-900 dark:text-white">Create a new API Key</p>
+                                        <p class="text-gray-500 dark:text-gray-400 mt-0.5">Click <strong>New API Key</strong>, enter a description (e.g. "Claude MCP"), and confirm with your password. <strong>Copy the key immediately</strong> &mdash; it will only be shown once.</p>
+                                    </div>
+                                </li>
+                            </ol>
+                            <div class="mt-4 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-3">
+                                <div class="flex">
+                                    <svg class="h-5 w-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                                    </svg>
+                                    <p class="ml-3 text-xs text-amber-700 dark:text-amber-300">
+                                        <strong>Important:</strong> Your API key has the same permissions as your Odoo account. Never share it with others. Each team member should create their own key.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Step 2: Connect your Odoo instance -->
+                <div class="bg-white dark:bg-gray-900 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800">
+                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+                        <div class="flex items-center">
+                            <span class="flex items-center justify-center w-6 h-6 rounded-full {% if connections %}bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300{% else %}bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400{% endif %} text-xs font-bold mr-3">
+                                {% if connections %}
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                {% else %}2{% endif %}
+                            </span>
+                            <div>
+                                <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+                                    {% if connections %}Your Connections{% else %}Connect Your Odoo Instance{% endif %}
+                                </h2>
+                                <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                                    {% if connections %}Manage your Odoo connections.{% else %}Enter your Odoo details and the API key you just created.{% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Existing connections list -->
+                    {% if connections %}
+                    <ul class="divide-y divide-gray-200 dark:divide-gray-800">
+                        {% for conn in connections %}
+                        <li id="connection-{{ conn.id }}" class="px-6 py-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ conn.db_name }}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">{{ conn.odoo_url }}</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                {% if conn.is_active and conn.db_is_active %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</span>
+                                {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Inactive</span>
+                                {% endif %}
+                                <form method="post" action="/admin/setup/{{ conn.id }}/delete"
+                                      hx-post="/admin/setup/{{ conn.id }}/delete"
+                                      hx-target="#connection-{{ conn.id }}" hx-swap="outerHTML"
+                                      hx-confirm="Are you sure you want to remove this connection?"
+                                      class="inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="text-red-600 hover:text-red-900 dark:text-red-400 text-sm">Remove</button>
+                                </form>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+
+                    <!-- Add another connection (collapsible) -->
+                    <details class="border-t border-gray-200 dark:border-gray-800">
+                        <summary class="px-6 py-3 cursor-pointer select-none text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 font-medium">
+                            + Add another connection
+                        </summary>
+                    {% endif %}
+
+                    <!-- Connection form -->
+                    {% if user_tenant %}
+                    {# User's org has a tenant configured — only ask for API key #}
+                    <form method="post" action="/admin/setup" class="px-6 py-6 space-y-5 {% if connections %}border-t border-gray-100 dark:border-gray-800{% endif %}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="odoo_url" value="{{ user_tenant.odoo_url }}">
+
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-3">
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Odoo instance</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">{{ user_tenant.odoo_url }}</p>
+                        </div>
+
+                        <div>
+                            <label for="odoo_api_key" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Your API Key
+                            </label>
+                            <input type="password" name="odoo_api_key" id="odoo_api_key" required
+                                   placeholder="Paste your Odoo API key here"
+                                   class="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono">
+                        </div>
+
+                        <div class="pt-2">
+                            <button type="submit"
+                                    class="w-full flex justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors">
+                                Save Connection
+                            </button>
+                        </div>
+                    </form>
+                    {% elif not connections %}
+                    {# No tenant for this org — user can't set up yet #}
+                    <div class="px-6 py-8 text-center">
+                        <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p class="mt-3 text-sm font-medium text-gray-900 dark:text-white">Your organization is not set up yet</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ask your administrator to configure the Odoo connection for your organization.</p>
+                    </div>
+                    {% endif %}
+
+                    {% if connections %}
+                    </details>
+                    {% endif %}
+                </div>
+
+                <!-- Step 3: Connect to Claude (shown after connection is saved) -->
+                <div class="bg-white dark:bg-gray-900 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800">
+                    <details {% if connections %}open{% endif %}>
+                        <summary class="px-6 py-4 cursor-pointer select-none border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                            <div class="inline-flex items-center">
+                                <span class="flex items-center justify-center w-6 h-6 rounded-full {% if not connections %}bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400{% else %}bg-indigo-600 text-white{% endif %} text-xs font-bold mr-3">3</span>
+                                <h2 class="text-base font-semibold text-gray-900 dark:text-white">Connect with Claude</h2>
+                            </div>
+                        </summary>
+                        <div class="px-6 py-5 space-y-6">
+                            {% if not connections %}
+                            <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 text-center">
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Complete step 2 first to see your connection instructions.</p>
+                            </div>
+                            {% else %}
+                            <p class="text-sm text-gray-600 dark:text-gray-400">
+                                Your Odoo connection is ready. Choose how you want to use it with Claude:
+                            </p>
+
+                            <!-- Claude.ai -->
+                            <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                <div class="px-5 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-orange-500" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                                        </svg>
+                                        Claude.ai (browser)
+                                    </h3>
+                                </div>
+                                <div class="px-5 py-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                                    <p>Claude.ai connects automatically via OAuth. No extra setup needed.</p>
+                                    <ol class="list-decimal list-inside space-y-1 text-gray-500 dark:text-gray-400">
+                                        <li>Go to Claude.ai and open a new conversation</li>
+                                        <li>Click the <strong>MCP integrations</strong> icon (puzzle piece) in the chat bar</li>
+                                        <li>Search for <strong>"Odoo"</strong> and click Connect</li>
+                                        <li>Sign in with your same account &mdash; you'll be connected automatically</li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <!-- Claude Code (CLI) -->
+                            <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                <div class="px-5 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        Claude Code (CLI / VS Code)
+                                    </h3>
+                                </div>
+                                <div class="px-5 py-4 text-sm text-gray-600 dark:text-gray-400 space-y-3">
+                                    <p>Add the Odoo MCP server to your Claude Code configuration:</p>
+                                    <div class="relative">
+                                        <pre class="bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto"><code>{
+  "mcpServers": {
+    "odoo": {
+      "url": "{{ mcp_server_url }}/mcp/"
+    }
+  }
+}</code></pre>
+                                        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent.trim())"
+                                                class="absolute top-2 right-2 p-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                                                title="Copy to clipboard">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-500">
+                                        Add this to <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">~/.claude/settings.json</code> or your project's <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">.mcp.json</code>.
+                                        You'll be prompted to sign in on first use.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Claude Desktop -->
+                            <div class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                                <div class="px-5 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                        </svg>
+                                        Claude Desktop
+                                    </h3>
+                                </div>
+                                <div class="px-5 py-4 text-sm text-gray-600 dark:text-gray-400 space-y-3">
+                                    <p>Add the server to your Claude Desktop configuration file:</p>
+                                    <div class="relative">
+                                        <pre class="bg-gray-900 dark:bg-gray-950 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto"><code>{
+  "mcpServers": {
+    "odoo": {
+      "url": "{{ mcp_server_url }}/mcp/"
+    }
+  }
+}</code></pre>
+                                        <button onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent.trim())"
+                                                class="absolute top-2 right-2 p-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                                                title="Copy to clipboard">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <p class="text-xs text-gray-500 dark:text-gray-500">
+                                        <strong>macOS:</strong> <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">~/Library/Application Support/Claude/claude_desktop_config.json</code><br>
+                                        <strong>Windows:</strong> <code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">%APPDATA%\Claude\claude_desktop_config.json</code>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- What you can do -->
+                            <div class="rounded-lg bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 p-4">
+                                <h3 class="text-sm font-semibold text-indigo-800 dark:text-indigo-200 mb-2">What you can do with Odoo MCP</h3>
+                                <ul class="text-sm text-indigo-700 dark:text-indigo-300 space-y-1">
+                                    <li class="flex items-start">
+                                        <span class="text-indigo-400 mr-2">&bull;</span>
+                                        Ask Claude to search, read, create, and update Odoo records
+                                    </li>
+                                    <li class="flex items-start">
+                                        <span class="text-indigo-400 mr-2">&bull;</span>
+                                        Query invoices, contacts, products, stock, and any other Odoo model
+                                    </li>
+                                    <li class="flex items-start">
+                                        <span class="text-indigo-400 mr-2">&bull;</span>
+                                        Your Odoo permissions are enforced &mdash; Claude can only access what you can
+                                    </li>
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </details>
+                </div>
+
+                <!-- Footer -->
+                <p class="text-center text-xs text-gray-400 dark:text-gray-600 pb-4">
+                    Need help? Contact your organization administrator.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

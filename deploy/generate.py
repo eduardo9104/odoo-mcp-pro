@@ -90,8 +90,11 @@ def generate_compose(config: dict) -> str:
             "networks": ["mcp-net"],
             "healthcheck": {
                 "test": [
-                    "CMD", "/app/zitadel", "ready",
-                    "--config", "/zitadel-ready.yaml",
+                    "CMD",
+                    "/app/zitadel",
+                    "ready",
+                    "--config",
+                    "/zitadel-ready.yaml",
                 ],
                 "interval": "10s",
                 "timeout": "5s",
@@ -130,13 +133,15 @@ def generate_compose(config: dict) -> str:
             # so the SDK registers the PRM route at the correct path-based well-known URI
             resource_server_url = f"https://{config['domain']}/{name}/mcp"
 
-            env.update({
-                "OAUTH_ISSUER_URL": oauth["issuer_url"],
-                "OAUTH_RESOURCE_SERVER_URL": resource_server_url,
-                "ZITADEL_INTROSPECTION_URL": introspection_url,
-                "ZITADEL_CLIENT_ID": "${ZITADEL_CLIENT_ID}",
-                "ZITADEL_CLIENT_SECRET": "${ZITADEL_CLIENT_SECRET}",
-            })
+            env.update(
+                {
+                    "OAUTH_ISSUER_URL": oauth["issuer_url"],
+                    "OAUTH_RESOURCE_SERVER_URL": resource_server_url,
+                    "ZITADEL_INTROSPECTION_URL": introspection_url,
+                    "ZITADEL_CLIENT_ID": "${ZITADEL_CLIENT_ID}",
+                    "ZITADEL_CLIENT_SECRET": "${ZITADEL_CLIENT_SECRET}",
+                }
+            )
 
         service = {
             "build": {

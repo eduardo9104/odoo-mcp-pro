@@ -1,7 +1,7 @@
 """Configuration management for Odoo MCP Server.
 
 This module handles loading and validation of environment variables
-for connecting to Odoo via XML-RPC.
+for connecting to Odoo via JSON/2 or XML-RPC.
 """
 
 import os
@@ -56,9 +56,7 @@ class OdooConfig:
         if self.api_version == "json2":
             # JSON/2 only needs an API key (Bearer token auth)
             if not has_api_key:
-                raise ValueError(
-                    "JSON/2 API requires ODOO_API_KEY for Bearer token authentication"
-                )
+                raise ValueError("JSON/2 API requires ODOO_API_KEY for Bearer token authentication")
         else:
             if not has_api_key and not has_credentials:
                 raise ValueError(
@@ -170,7 +168,8 @@ def load_config(env_file: Optional[Path] = None) -> OdooConfig:
             env_loaded = True
 
         # If no .env file found and no ODOO_URL in environment, raise error
-        if not env_loaded and not os.getenv("ODOO_URL"):
+        # (skip for multi-tenant mode where DATABASE_URL is the primary config)
+        if not env_loaded and not os.getenv("ODOO_URL") and not os.getenv("DATABASE_URL"):
             raise ValueError(
                 "No .env file found and ODOO_URL not set in environment.\n"
                 "Please create a .env file based on .env.example or set environment variables."
@@ -186,10 +185,21 @@ def load_config(env_file: Optional[Path] = None) -> OdooConfig:
         except ValueError:
             raise ValueError(f"{key} must be a valid integer") from None
 
+    # In multi-tenant mode (DATABASE_URL set), Odoo connection config is
+    # not needed at startup — connections are created per-user from the database.
+    # Provide placeholder values to pass OdooConfig validation.
+    is_multi_tenant = bool(os.getenv("DATABASE_URL", "").strip())
+    odoo_url = os.getenv("ODOO_URL", "").strip()
+    api_key = os.getenv("ODOO_API_KEY", "").strip() or None
+
+    if is_multi_tenant:
+        odoo_url = odoo_url or "http://localhost:8069"
+        api_key = api_key or "multi-tenant-placeholder"
+
     # Create configuration
     config = OdooConfig(
-        url=os.getenv("ODOO_URL", "").strip(),
-        api_key=os.getenv("ODOO_API_KEY", "").strip() or None,
+        url=odoo_url,
+        api_key=api_key,
         username=os.getenv("ODOO_USER", "").strip() or None,
         password=os.getenv("ODOO_PASSWORD", "").strip() or None,
         database=os.getenv("ODOO_DB", "").strip() or None,

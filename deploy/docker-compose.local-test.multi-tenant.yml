@@ -1,0 +1,51 @@
+# Local testing of multi-tenant mode (no TLS, no Caddy, no OAuth)
+#
+# Usage:
+#   cd deploy
+#   docker compose -f docker-compose.local-test.multi-tenant.yml up --build
+#
+# Then open http://localhost:8000/admin/
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-postgres-test
+    environment:
+      POSTGRES_USER: mcp
+      POSTGRES_PASSWORD: testpassword
+      POSTGRES_DB: mcp_admin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: mcp-server-test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      # Multi-tenant mode
+      DATABASE_URL: postgresql://mcp:testpassword@postgres:5432/mcp_admin
+      # Admin panel (no OAuth for local test — use bootstrap admin)
+      ADMIN_SESSION_SECRET: local-test-secret-not-for-production
+      ADMIN_BASE_URL: http://localhost:8000
+      # Dev login (auto-login as bootstrap admin, no OAuth needed)
+      ADMIN_DEV_LOGIN: "true"
+      ADMIN_BOOTSTRAP_SUB: local-test-admin
+      ADMIN_BOOTSTRAP_EMAIL: admin@localhost
+      # Transport
+      ODOO_MCP_TRANSPORT: streamable-http
+      ODOO_MCP_HOST: "0.0.0.0"
+      ODOO_MCP_PORT: "8000"
+      # Dummy Odoo config (not used in multi-tenant, but OdooConfig requires it)
+      ODOO_URL: "http://host.docker.internal:8069"
+      ODOO_API_VERSION: json2
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -16,9 +16,8 @@ from urllib.parse import urlparse
 
 from .config import OdooConfig
 from .error_sanitizer import ErrorSanitizer
-from .performance import PerformanceManager
-
 from .exceptions import OdooConnectionError  # noqa: F401
+from .performance import PerformanceManager
 
 logger = logging.getLogger(__name__)
 
@@ -511,9 +510,7 @@ class OdooConnection:
                 )
                 return True
             else:
-                logger.warning(
-                    f"Authentication failed for user '{self.config.username}'"
-                )
+                logger.warning(f"Authentication failed for user '{self.config.username}'")
                 return False
 
         except xmlrpc.client.Fault as e:

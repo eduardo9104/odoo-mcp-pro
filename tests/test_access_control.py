@@ -496,12 +496,14 @@ class TestAccessControlJSON2:
         assert ctrl.connection is None
 
     def test_get_model_permissions_uses_check_access_rights(self, json2_config):
-        conn = self._connection({
-            ("res.partner", "read"): True,
-            ("res.partner", "write"): True,
-            ("res.partner", "create"): True,
-            ("res.partner", "unlink"): False,
-        })
+        conn = self._connection(
+            {
+                ("res.partner", "read"): True,
+                ("res.partner", "write"): True,
+                ("res.partner", "create"): True,
+                ("res.partner", "unlink"): False,
+            }
+        )
         ctrl = AccessController(json2_config, connection=conn)
 
         perms = ctrl.get_model_permissions("res.partner")
@@ -542,12 +544,14 @@ class TestAccessControlJSON2:
         assert ctrl.is_model_enabled("res.partner") is False
 
     def test_check_operation_allowed(self, json2_config):
-        conn = self._connection({
-            ("res.partner", "read"): True,
-            ("res.partner", "write"): True,
-            ("res.partner", "create"): False,
-            ("res.partner", "unlink"): False,
-        })
+        conn = self._connection(
+            {
+                ("res.partner", "read"): True,
+                ("res.partner", "write"): True,
+                ("res.partner", "create"): False,
+                ("res.partner", "unlink"): False,
+            }
+        )
         ctrl = AccessController(json2_config, connection=conn)
 
         allowed, msg = ctrl.check_operation_allowed("res.partner", "write")
@@ -559,10 +563,12 @@ class TestAccessControlJSON2:
         assert "unlink" in msg
 
     def test_filter_enabled_models(self, json2_config):
-        conn = self._connection({
-            ("res.partner", "read"): True,
-            ("res.users", "read"): False,
-        })
+        conn = self._connection(
+            {
+                ("res.partner", "read"): True,
+                ("res.users", "read"): False,
+            }
+        )
         ctrl = AccessController(json2_config, connection=conn)
 
         result = ctrl.filter_enabled_models(["res.partner", "res.users", "sale.order"])
@@ -572,12 +578,14 @@ class TestAccessControlJSON2:
         assert "sale.order" not in result
 
     def test_permissions_cached_per_model(self, json2_config):
-        conn = self._connection({
-            ("res.partner", "read"): True,
-            ("res.partner", "write"): True,
-            ("res.partner", "create"): True,
-            ("res.partner", "unlink"): False,
-        })
+        conn = self._connection(
+            {
+                ("res.partner", "read"): True,
+                ("res.partner", "write"): True,
+                ("res.partner", "create"): True,
+                ("res.partner", "unlink"): False,
+            }
+        )
         ctrl = AccessController(json2_config, connection=conn)
 
         ctrl.get_model_permissions("res.partner")

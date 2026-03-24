@@ -17,7 +17,6 @@ import httpx
 
 from .config import OdooConfig
 from .error_sanitizer import ErrorSanitizer
-
 from .exceptions import OdooConnectionError  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -53,9 +52,7 @@ class OdooJSON2Connection:
         # Parse and validate URL
         parsed = urlparse(config.url)
         if parsed.scheme not in ("http", "https"):
-            raise OdooConnectionError(
-                f"Invalid URL scheme: {parsed.scheme}. Must be http or https"
-            )
+            raise OdooConnectionError(f"Invalid URL scheme: {parsed.scheme}. Must be http or https")
         if not parsed.hostname:
             raise OdooConnectionError("Invalid URL: missing hostname")
 
@@ -144,9 +141,7 @@ class OdooJSON2Connection:
         elif response.status_code == 422:
             raise OdooConnectionError(f"Invalid request: {error_msg}")
         else:
-            raise OdooConnectionError(
-                f"Server error ({response.status_code}): {error_msg}"
-            )
+            raise OdooConnectionError(f"Server error ({response.status_code}): {error_msg}")
 
     def _parse_error_response(self, response: httpx.Response) -> str:
         """Extract error message from a JSON/2 error response.
@@ -287,14 +282,11 @@ class OdooJSON2Connection:
             self._uid = context.get("uid")
 
             if not self._uid:
-                raise OdooConnectionError(
-                    "Authentication failed: could not retrieve user ID"
-                )
+                raise OdooConnectionError("Authentication failed: could not retrieve user ID")
 
             self._authenticated = True
             logger.info(
-                f"Authenticated via JSON/2 as UID {self._uid} "
-                f"on database '{self._database}'"
+                f"Authenticated via JSON/2 as UID {self._uid} on database '{self._database}'"
             )
 
         except OdooConnectionError:
@@ -322,9 +314,7 @@ class OdooJSON2Connection:
 
     # --- ORM methods ---
 
-    def search(
-        self, model: str, domain: List[Union[str, List[Any]]], **kwargs: Any
-    ) -> List[int]:
+    def search(self, model: str, domain: List[Union[str, List[Any]]], **kwargs: Any) -> List[int]:
         """Search for record IDs matching a domain.
 
         Args:
@@ -377,9 +367,7 @@ class OdooJSON2Connection:
             kwargs["fields"] = fields
         return self._call(model, "search_read", domain=domain, **kwargs)
 
-    def search_count(
-        self, model: str, domain: List[Union[str, List[Any]]]
-    ) -> int:
+    def search_count(self, model: str, domain: List[Union[str, List[Any]]]) -> int:
         """Count records matching a domain.
 
         Args:
@@ -441,9 +429,7 @@ class OdooJSON2Connection:
         logger.info(f"Created {model} record with ID {record_id}")
         return record_id
 
-    def write(
-        self, model: str, ids: List[int], values: Dict[str, Any]
-    ) -> bool:
+    def write(self, model: str, ids: List[int], values: Dict[str, Any]) -> bool:
         """Update existing records.
 
         Args:
@@ -487,7 +473,8 @@ class OdooJSON2Connection:
         """
         try:
             result = self._call(
-                model, "check_access_rights",
+                model,
+                "check_access_rights",
                 operation=operation,
                 raise_exception=False,
             )

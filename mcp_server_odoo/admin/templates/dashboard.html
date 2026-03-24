@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Tenants</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage your Odoo instances and user access</p>
+        </div>
+        <a href="/admin/tenants/new"
+           class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Tenant
+        </a>
+    </div>
+
+    {% if tenant_stats %}
+    <!-- Tenant cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for item in tenant_stats %}
+        <a href="/admin/tenants/{{ item.tenant.id }}"
+           class="block bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all p-6 group">
+            <div class="flex items-start justify-between">
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 truncate">
+                        {{ item.tenant.name }}
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 truncate">
+                        {{ item.tenant.odoo_url }}
+                    </p>
+                </div>
+                {% if item.tenant.is_active %}
+                <span class="ml-3 inline-flex items-center rounded-full bg-green-100 dark:bg-green-900 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+                    Active
+                </span>
+                {% else %}
+                <span class="ml-3 inline-flex items-center rounded-full bg-red-100 dark:bg-red-900 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+                    Inactive
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="mt-4 flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                    {{ item.active_user_count }}/{{ item.user_count }} users
+                </div>
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                    </svg>
+                    {{ item.tenant.api_version }}
+                </div>
+            </div>
+
+            {% if item.tenant.zitadel_org_id %}
+            <div class="mt-2 text-xs text-gray-400 dark:text-gray-500 font-mono truncate">
+                org: {{ item.tenant.zitadel_org_id }}
+            </div>
+            {% endif %}
+
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty state -->
+    <div class="text-center py-16 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 border-dashed">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        <h3 class="mt-4 text-sm font-semibold text-gray-900 dark:text-white">No tenants</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Get started by adding your first Odoo instance.</p>
+        <a href="/admin/tenants/new"
+           class="mt-6 inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Add Tenant
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

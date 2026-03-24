@@ -1,0 +1,27 @@
+{$DOMAIN:mcp.example.com} {
+    # Admin panel
+    handle /admin/* {
+        reverse_proxy mcp-server:8000
+    }
+
+    # OAuth well-known endpoints
+    handle /.well-known/oauth-authorization-server {
+        reverse_proxy mcp-server:8000
+    }
+    handle /.well-known/oauth-protected-resource {
+        reverse_proxy mcp-server:8000
+    }
+    handle /.well-known/oauth-protected-resource/* {
+        reverse_proxy mcp-server:8000
+    }
+
+    # MCP endpoint
+    handle /mcp {
+        reverse_proxy mcp-server:8000
+    }
+    handle /mcp/* {
+        reverse_proxy mcp-server:8000
+    }
+
+    respond 404
+}

@@ -4,8 +4,10 @@ This module implements MCP resources for accessing Odoo data through
 standardized URIs using FastMCP decorators.
 """
 
+from __future__ import annotations
+
 import json
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
 from mcp.server.fastmcp import FastMCP
@@ -13,6 +15,7 @@ from mcp.types import Annotations
 
 from .access_control import AccessControlError, AccessController
 from .config import OdooConfig
+from .connection_protocol import OdooConnectionProtocol
 from .error_handling import (
     ErrorContext,
     NotFoundError,
@@ -21,11 +24,13 @@ from .error_handling import (
 )
 from .formatters import DatasetFormatter, RecordFormatter
 from .logging_config import get_logger, perf_logger
-from .connection_protocol import OdooConnectionProtocol
 from .odoo_connection import OdooConnectionError
 from .uri_schema import (
     build_search_uri,
 )
+
+if TYPE_CHECKING:
+    from .registry import ConnectionRegistry
 
 logger = get_logger(__name__)
 
@@ -36,25 +41,79 @@ class OdooResourceHandler:
     def __init__(
         self,
         app: FastMCP,
-        connection: OdooConnectionProtocol,
-        access_controller: AccessController,
-        config: OdooConfig,
+        connection: Optional[OdooConnectionProtocol] = None,
+        access_controller: Optional[AccessController] = None,
+        config: Optional[OdooConfig] = None,
+        registry: Optional[ConnectionRegistry] = None,
     ):
         """Initialize resource handler.
 
+        Supports two modes:
+        - Registry mode (HTTP/multi-tenant): pass registry, connection per-request via auth context
+        - Fallback mode (stdio/single-tenant): pass connection + access_controller directly
+
         Args:
             app: FastMCP application instance
-            connection: Odoo connection (XML-RPC or JSON/2)
-            access_controller: Access control instance
+            connection: Fallback Odoo connection for stdio mode
+            access_controller: Fallback access controller for stdio mode
             config: Odoo configuration instance
+            registry: ConnectionRegistry for multi-tenant lookups (HTTP mode)
         """
         self.app = app
-        self.connection = connection
-        self.access_controller = access_controller
+        self.registry = registry
+        self._fallback_connection = connection
+        self._fallback_access_controller = access_controller
         self.config = config
 
         # Register resources
         self._register_resources()
+
+    async def _get_user_context(self) -> Tuple[OdooConnectionProtocol, AccessController]:
+        """Get connection and access controller for the current request.
+
+        In HTTP mode with OAuth, reads the authenticated user's subject ID
+        from the auth context and resolves the connection via the registry.
+        In stdio mode, returns the fallback connection.
+
+        Returns:
+            Tuple of (connection, access_controller)
+
+        Raises:
+            ValidationError: If no connection is available
+        """
+        if self.registry is not None:
+            try:
+                from mcp.server.auth.middleware.auth_context import get_access_token
+
+                access_token = get_access_token()
+                if access_token is not None:
+                    # Parse sub:org_id format packed by ZitadelTokenVerifier
+                    client_id = access_token.client_id
+                    if ":" in client_id:
+                        sub, org_id = client_id.split(":", 1)
+                    else:
+                        sub, org_id = client_id, ""
+                    cached = await self.registry.get_connection(sub, org_id)
+                    return cached.connection, cached.access_controller
+            except Exception:
+                pass
+
+        # Fallback for stdio mode
+        if self._fallback_connection is not None and self._fallback_access_controller is not None:
+            return self._fallback_connection, self._fallback_access_controller
+
+        raise ValidationError("No Odoo connection available")
+
+    # Convenience properties for backward compatibility
+    @property
+    def connection(self) -> Optional[OdooConnectionProtocol]:
+        """Fallback connection for backward compatibility."""
+        return self._fallback_connection
+
+    @property
+    def access_controller(self) -> Optional[AccessController]:
+        """Fallback access controller for backward compatibility."""
+        return self._fallback_access_controller
 
     def _register_resources(self):
         """Register all resource handlers with FastMCP."""
@@ -167,6 +226,7 @@ class OdooResourceHandler:
         logger.info(f"Retrieving record: {model}/{record_id}")
 
         try:
+            connection, access_controller = await self._get_user_context()
             with perf_logger.track_operation("resource_get_record", model=model):
                 # Validate record ID
                 try:
@@ -180,17 +240,17 @@ class OdooResourceHandler:
 
                 # Check model access permissions
                 try:
-                    self.access_controller.validate_model_access(model, "read")
+                    access_controller.validate_model_access(model, "read")
                 except AccessControlError as e:
                     logger.warning(f"Access denied for {model}.read: {e}")
                     raise PermissionError(f"Access denied: {e}", context=context) from e
 
                 # Ensure we're connected
-                if not self.connection.is_authenticated:
+                if not connection.is_authenticated:
                     raise ValidationError("Not authenticated with Odoo", context=context)
 
             # Search for the record to check if it exists
-            record_ids = self.connection.search(model, [("id", "=", record_id_int)])
+            record_ids = connection.search(model, [("id", "=", record_id_int)])
 
             if not record_ids:
                 raise NotFoundError(
@@ -200,7 +260,7 @@ class OdooResourceHandler:
             # Read the record with smart field selection to avoid serialization issues
             # Get field metadata to determine which fields to fetch
             try:
-                fields_info = self.connection.fields_get(model)
+                fields_info = connection.fields_get(model)
                 # Filter out fields that might cause serialization issues
                 safe_fields = []
                 for field_name, field_info in fields_info.items():
@@ -216,14 +276,14 @@ class OdooResourceHandler:
                         safe_fields.append(field_name)
 
                 if safe_fields:
-                    records = self.connection.read(model, record_ids, safe_fields)
+                    records = connection.read(model, record_ids, safe_fields)
                 else:
                     # Fallback to all fields if we can't determine safe fields
-                    records = self.connection.read(model, record_ids)
+                    records = connection.read(model, record_ids)
             except Exception as e:
                 logger.debug(f"Could not get field metadata, reading all fields: {e}")
                 # If we can't get field info, try to read all fields
-                records = self.connection.read(model, record_ids)
+                records = connection.read(model, record_ids)
 
             if not records:
                 raise NotFoundError(f"Record not found: {model} with ID {record_id} does not exist")
@@ -231,7 +291,7 @@ class OdooResourceHandler:
             record = records[0]
 
             # Format the record data
-            formatted_data = self._format_record(model, record)
+            formatted_data = self._format_record(model, record, connection)
 
             logger.info(f"Successfully retrieved record: {model}/{record_id}")
             return formatted_data
@@ -275,15 +335,16 @@ class OdooResourceHandler:
         logger.info(f"Searching {model} with domain={domain}, limit={limit}, offset={offset}")
 
         try:
+            connection, access_controller = await self._get_user_context()
             # Check model access permissions
             try:
-                self.access_controller.validate_model_access(model, "read")
+                access_controller.validate_model_access(model, "read")
             except AccessControlError as e:
                 logger.warning(f"Access denied for {model}.read: {e}")
                 raise PermissionError(f"Access denied: {e}") from e
 
             # Ensure we're connected
-            if not self.connection.is_authenticated:
+            if not connection.is_authenticated:
                 raise ValidationError("Not authenticated with Odoo")
 
             # Parse parameters
@@ -294,21 +355,21 @@ class OdooResourceHandler:
             order_value = self._parse_order(order)
 
             # Get total count for pagination
-            total_count = self.connection.search_count(model, parsed_domain)
+            total_count = connection.search_count(model, parsed_domain)
 
             # Perform search
-            record_ids = self.connection.search(
+            record_ids = connection.search(
                 model, parsed_domain, limit=limit_value, offset=offset_value, order=order_value
             )
 
             # Read records if any found
             records = []
             if record_ids:
-                records = self.connection.read(model, record_ids, fields_list)
+                records = connection.read(model, record_ids, fields_list)
 
             # Get field metadata for formatting
             try:
-                fields_metadata = self.connection.fields_get(model)
+                fields_metadata = connection.fields_get(model)
             except Exception as e:
                 logger.debug(f"Could not retrieve field metadata: {e}")
                 fields_metadata = None
@@ -515,15 +576,16 @@ class OdooResourceHandler:
         logger.info(f"Browsing {model} records with IDs: {ids}")
 
         try:
+            connection, access_controller = await self._get_user_context()
             # Check model access permissions
             try:
-                self.access_controller.validate_model_access(model, "read")
+                access_controller.validate_model_access(model, "read")
             except AccessControlError as e:
                 logger.warning(f"Access denied for {model}.read: {e}")
                 raise PermissionError(f"Access denied: {e}") from e
 
             # Ensure we're connected
-            if not self.connection.is_authenticated:
+            if not connection.is_authenticated:
                 raise ValidationError("Not authenticated with Odoo")
 
             # Parse IDs
@@ -534,7 +596,7 @@ class OdooResourceHandler:
             # Read records in batch with smart field selection to avoid serialization issues
             # Get field metadata to determine which fields to fetch
             try:
-                fields_info = self.connection.fields_get(model)
+                fields_info = connection.fields_get(model)
                 # Filter out fields that might cause serialization issues
                 safe_fields = []
                 for field_name, field_info in fields_info.items():
@@ -550,18 +612,18 @@ class OdooResourceHandler:
                         safe_fields.append(field_name)
 
                 if safe_fields:
-                    records = self.connection.read(model, id_list, safe_fields)
+                    records = connection.read(model, id_list, safe_fields)
                 else:
                     # Fallback to all fields if we can't determine safe fields
-                    records = self.connection.read(model, id_list)
+                    records = connection.read(model, id_list)
             except Exception as e:
                 logger.debug(f"Could not get field metadata, reading all fields: {e}")
                 # If we can't get field info, try to read all fields
-                records = self.connection.read(model, id_list)
+                records = connection.read(model, id_list)
 
             # Get field metadata for formatting
             try:
-                fields_metadata = self.connection.fields_get(model)
+                fields_metadata = connection.fields_get(model)
             except Exception as e:
                 logger.debug(f"Could not retrieve field metadata: {e}")
                 fields_metadata = None
@@ -601,22 +663,23 @@ class OdooResourceHandler:
         logger.info(f"Counting {model} records with domain: {domain}")
 
         try:
+            connection, access_controller = await self._get_user_context()
             # Check model access permissions
             try:
-                self.access_controller.validate_model_access(model, "read")
+                access_controller.validate_model_access(model, "read")
             except AccessControlError as e:
                 logger.warning(f"Access denied for {model}.read: {e}")
                 raise PermissionError(f"Access denied: {e}") from e
 
             # Ensure we're connected
-            if not self.connection.is_authenticated:
+            if not connection.is_authenticated:
                 raise ValidationError("Not authenticated with Odoo")
 
             # Parse domain
             parsed_domain = self._parse_domain(domain)
 
             # Get count
-            count = self.connection.search_count(model, parsed_domain)
+            count = connection.search_count(model, parsed_domain)
 
             # Format result
             formatted_result = self._format_count_result(model, count, parsed_domain)
@@ -650,19 +713,20 @@ class OdooResourceHandler:
         logger.info(f"Getting field definitions for {model}")
 
         try:
+            connection, access_controller = await self._get_user_context()
             # Check model access permissions
             try:
-                self.access_controller.validate_model_access(model, "read")
+                access_controller.validate_model_access(model, "read")
             except AccessControlError as e:
                 logger.warning(f"Access denied for {model}.read: {e}")
                 raise PermissionError(f"Access denied: {e}") from e
 
             # Ensure we're connected
-            if not self.connection.is_authenticated:
+            if not connection.is_authenticated:
                 raise ValidationError("Not authenticated with Odoo")
 
             # Get field definitions
-            fields = self.connection.fields_get(model)
+            fields = connection.fields_get(model)
 
             # Format result
             formatted_result = self._format_fields_result(model, fields)
@@ -838,19 +902,26 @@ class OdooResourceHandler:
 
         return "\n".join(lines)
 
-    def _format_record(self, model: str, record: Dict[str, Any]) -> str:
+    def _format_record(
+        self,
+        model: str,
+        record: Dict[str, Any],
+        connection: Optional[OdooConnectionProtocol] = None,
+    ) -> str:
         """Format a record for MCP consumption.
 
         Args:
             model: The model name
             record: The record data
+            connection: Odoo connection to use for field metadata
 
         Returns:
             Formatted text representation
         """
+        conn = connection or self._fallback_connection
         # Get field metadata if available
         try:
-            fields_metadata = self.connection.fields_get(model)
+            fields_metadata = conn.fields_get(model) if conn else None
         except Exception as e:
             logger.debug(f"Could not retrieve field metadata: {e}")
             fields_metadata = None
@@ -862,21 +933,29 @@ class OdooResourceHandler:
 
 def register_resources(
     app: FastMCP,
-    connection: OdooConnectionProtocol,
-    access_controller: AccessController,
-    config: OdooConfig,
+    connection: Optional[OdooConnectionProtocol] = None,
+    access_controller: Optional[AccessController] = None,
+    config: Optional[OdooConfig] = None,
+    registry: Optional[ConnectionRegistry] = None,
 ) -> OdooResourceHandler:
     """Register all Odoo resources with the FastMCP app.
 
     Args:
         app: FastMCP application instance
-        connection: Odoo connection instance
-        access_controller: Access control instance
+        connection: Odoo connection instance (stdio/single-tenant mode)
+        access_controller: Access control instance (stdio/single-tenant mode)
         config: Odoo configuration instance
+        registry: ConnectionRegistry for multi-tenant mode (HTTP)
 
     Returns:
         The resource handler instance
     """
-    handler = OdooResourceHandler(app, connection, access_controller, config)
+    handler = OdooResourceHandler(
+        app,
+        registry=registry,
+        connection=connection,
+        access_controller=access_controller,
+        config=config,
+    )
     logger.info("Registered Odoo MCP resources")
     return handler

@@ -5,14 +5,13 @@ a running Odoo 19 instance with ODOO_API_VERSION=json2.
 """
 
 import os
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
 from mcp_server_odoo.config import OdooConfig
 from mcp_server_odoo.odoo_json2_connection import OdooConnectionError, OdooJSON2Connection
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -86,15 +85,11 @@ class TestOdooJSON2Init:
 
     def test_init_invalid_scheme(self):
         with pytest.raises((OdooConnectionError, ValueError)):
-            OdooJSON2Connection(
-                OdooConfig(url="ftp://localhost", api_key="k", api_version="json2")
-            )
+            OdooJSON2Connection(OdooConfig(url="ftp://localhost", api_key="k", api_version="json2"))
 
     def test_init_missing_hostname(self):
         with pytest.raises(OdooConnectionError, match="missing hostname"):
-            OdooJSON2Connection(
-                OdooConfig(url="http://", api_key="k", api_version="json2")
-            )
+            OdooJSON2Connection(OdooConfig(url="http://", api_key="k", api_version="json2"))
 
     def test_build_headers_with_database(self, connected_json2):
         conn, _ = connected_json2
@@ -136,33 +131,25 @@ class TestOdooJSON2Call:
 
     def test_call_401_raises(self, connected_json2):
         conn, mock_client = connected_json2
-        mock_client.post.return_value = _error_response(
-            401, {"message": "Invalid token"}
-        )
+        mock_client.post.return_value = _error_response(401, {"message": "Invalid token"})
         with pytest.raises(OdooConnectionError, match="Authentication failed"):
             conn._call("res.partner", "search", domain=[])
 
     def test_call_403_raises(self, connected_json2):
         conn, mock_client = connected_json2
-        mock_client.post.return_value = _error_response(
-            403, {"message": "Access denied"}
-        )
+        mock_client.post.return_value = _error_response(403, {"message": "Access denied"})
         with pytest.raises(OdooConnectionError, match="Access denied"):
             conn._call("res.partner", "search", domain=[])
 
     def test_call_404_raises(self, connected_json2):
         conn, mock_client = connected_json2
-        mock_client.post.return_value = _error_response(
-            404, {"message": "Model not found"}
-        )
+        mock_client.post.return_value = _error_response(404, {"message": "Model not found"})
         with pytest.raises(OdooConnectionError, match="Not found"):
             conn._call("res.partner", "search", domain=[])
 
     def test_call_422_raises(self, connected_json2):
         conn, mock_client = connected_json2
-        mock_client.post.return_value = _error_response(
-            422, {"message": "Invalid domain"}
-        )
+        mock_client.post.return_value = _error_response(422, {"message": "Invalid domain"})
         with pytest.raises(OdooConnectionError, match="Invalid request"):
             conn._call("res.partner", "search", domain=[])
 
@@ -208,9 +195,9 @@ class TestOdooJSON2Lifecycle:
         conn = OdooJSON2Connection(json2_config)
 
         with patch.object(conn, "_fetch_version", return_value={"server_version": "19.0"}):
-            with patch("httpx.Client") as MockClient:
+            with patch("httpx.Client") as mock_client_cls:
                 mock_instance = MagicMock()
-                MockClient.return_value = mock_instance
+                mock_client_cls.return_value = mock_instance
                 conn.connect()
 
         assert conn.is_connected
@@ -226,9 +213,7 @@ class TestOdooJSON2Lifecycle:
     def test_connect_version_fails(self, json2_config):
         conn = OdooJSON2Connection(json2_config)
 
-        with patch.object(
-            conn, "_fetch_version", side_effect=OdooConnectionError("no version")
-        ):
+        with patch.object(conn, "_fetch_version", side_effect=OdooConnectionError("no version")):
             with patch("httpx.Client"):
                 with pytest.raises(OdooConnectionError, match="no version"):
                     conn.connect()
@@ -289,9 +274,10 @@ class TestOdooJSON2Lifecycle:
             conn.authenticate()
 
     def test_context_manager(self, json2_config):
-        with patch.object(OdooJSON2Connection, "connect") as mock_connect, patch.object(
-            OdooJSON2Connection, "disconnect"
-        ) as mock_disconnect:
+        with (
+            patch.object(OdooJSON2Connection, "connect") as mock_connect,
+            patch.object(OdooJSON2Connection, "disconnect") as mock_disconnect,
+        ):
             with OdooJSON2Connection(json2_config) as conn:
                 mock_connect.assert_called_once()
                 assert isinstance(conn, OdooJSON2Connection)
@@ -320,9 +306,7 @@ class TestOdooJSON2ORM:
 
     def test_read_with_fields(self, connected_json2):
         conn, mock_client = connected_json2
-        mock_client.post.return_value = _ok_response(
-            [{"id": 1, "name": "Test"}]
-        )
+        mock_client.post.return_value = _ok_response([{"id": 1, "name": "Test"}])
 
         result = conn.read("res.partner", [1], fields=["name"])
 
@@ -337,7 +321,7 @@ class TestOdooJSON2ORM:
             [{"id": 1, "name": "Test", "email": "t@t.com"}]
         )
 
-        result = conn.read("res.partner", [1])
+        conn.read("res.partner", [1])
 
         body = mock_client.post.call_args[1]["json"]
         assert body["ids"] == [1]
@@ -345,13 +329,9 @@ class TestOdooJSON2ORM:
 
     def test_search_read(self, connected_json2):
         conn, mock_client = connected_json2
-        mock_client.post.return_value = _ok_response(
-            [{"id": 1, "name": "Test"}]
-        )
+        mock_client.post.return_value = _ok_response([{"id": 1, "name": "Test"}])
 
-        result = conn.search_read(
-            "res.partner", [["active", "=", True]], fields=["name"], limit=5
-        )
+        result = conn.search_read("res.partner", [["active", "=", True]], fields=["name"], limit=5)
 
         assert result == [{"id": 1, "name": "Test"}]
         body = mock_client.post.call_args[1]["json"]
@@ -388,7 +368,7 @@ class TestOdooJSON2ORM:
         mock_client.post.return_value = _ok_response(fields_data)
 
         # Call with attributes — not cached
-        result = conn.fields_get("res.partner", attributes=["string"])
+        conn.fields_get("res.partner", attributes=["string"])
 
         body = mock_client.post.call_args[1]["json"]
         assert body["attributes"] == ["string"]
@@ -512,9 +492,7 @@ class TestOdooJSON2Integration:
         assert all(isinstance(i, int) for i in ids)
 
     def test_search_read_res_partner(self, live_connection):
-        records = live_connection.search_read(
-            "res.partner", [], fields=["name", "email"], limit=3
-        )
+        records = live_connection.search_read("res.partner", [], fields=["name", "email"], limit=3)
         assert isinstance(records, list)
         assert len(records) <= 3
         if records:

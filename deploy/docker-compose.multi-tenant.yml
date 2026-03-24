@@ -1,0 +1,99 @@
+# Multi-tenant deployment: 1 MCP server + Postgres + Caddy
+#
+# All Odoo databases and users are managed via the admin panel at /admin.
+# No instances.yml needed — everything is configured in the database.
+#
+# Required env vars (set in .env file):
+#   DATABASE_URL=postgresql://mcp:${POSTGRES_PASSWORD}@postgres:5432/mcp_admin
+#   ADMIN_SESSION_SECRET=<random 32+ char string>
+#   ADMIN_OAUTH_CLIENT_ID=<Zitadel app client ID for admin panel>
+#   ADMIN_BASE_URL=https://mcp.example.com
+#   ADMIN_BOOTSTRAP_SUB=<your Zitadel subject ID>
+#   ADMIN_BOOTSTRAP_EMAIL=<your email>
+#   OAUTH_ISSUER_URL=<Zitadel issuer URL>
+#   ZITADEL_INTROSPECTION_URL=<Zitadel introspection URL>
+#   ZITADEL_CLIENT_ID=<Zitadel service user client ID>
+#   ZITADEL_CLIENT_SECRET=<Zitadel service user client secret>
+#   OAUTH_RESOURCE_SERVER_URL=https://mcp.example.com/mcp
+#   POSTGRES_PASSWORD=<strong password>
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mcp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mcp_admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    container_name: mcp-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Multi-tenant mode (triggers admin panel + registry)
+      DATABASE_URL: postgresql://mcp:${POSTGRES_PASSWORD}@postgres:5432/mcp_admin
+      # Admin panel
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      ADMIN_OAUTH_CLIENT_ID: ${ADMIN_OAUTH_CLIENT_ID}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL}
+      ADMIN_BOOTSTRAP_SUB: ${ADMIN_BOOTSTRAP_SUB}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_COOKIE_SECURE: "true"
+      # OAuth (MCP endpoint auth)
+      OAUTH_ISSUER_URL: ${OAUTH_ISSUER_URL}
+      OAUTH_RESOURCE_SERVER_URL: ${OAUTH_RESOURCE_SERVER_URL}
+      ZITADEL_INTROSPECTION_URL: ${ZITADEL_INTROSPECTION_URL}
+      ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID}
+      ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET}
+      # Transport
+      ODOO_MCP_TRANSPORT: streamable-http
+      ODOO_MCP_HOST: "0.0.0.0"
+      ODOO_MCP_PORT: "8000"
+      # Dummy values for OdooConfig (not used in multi-tenant mode)
+      ODOO_URL: "https://placeholder.odoo.com"
+      ODOO_API_VERSION: json2
+    networks:
+      - mcp-net
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: mcp-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.multi-tenant:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - mcp-net
+    depends_on:
+      - mcp-server
+
+networks:
+  mcp-net:
+    driver: bridge
+
+volumes:
+  postgres_data: {}
+  caddy_data: {}
+  caddy_config: {}

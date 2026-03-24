@@ -188,8 +188,12 @@ class AccessController:
         """
         if self.connection is None:
             return ModelPermissions(
-                model=model, enabled=True,
-                can_read=True, can_write=True, can_create=True, can_unlink=True,
+                model=model,
+                enabled=True,
+                can_read=True,
+                can_write=True,
+                can_create=True,
+                can_unlink=True,
             )
 
         cache_key = f"_j2_{model}"
@@ -213,7 +217,11 @@ class AccessController:
         self._set_cache(cache_key, perms)
         logger.debug(
             "JSON/2 permissions for %s: read=%s write=%s create=%s unlink=%s",
-            model, can_read, can_write, can_create, can_unlink,
+            model,
+            can_read,
+            can_write,
+            can_create,
+            can_unlink,
         )
         return perms
 
