@@ -299,7 +299,6 @@ def register_admin_routes(app, db_manager):
 
         zitadel_sub = form.get("zitadel_sub", "").strip()
         email = form.get("email", "").strip() or None
-        odoo_api_key = form.get("odoo_api_key", "").strip()
 
         if not zitadel_sub:
             templates = request.app.state.templates
@@ -313,15 +312,13 @@ def register_admin_routes(app, db_manager):
                     "form_data": {
                         "zitadel_sub": zitadel_sub,
                         "email": email or "",
-                        "odoo_api_key": odoo_api_key,
                     },
                     "csrf_token": generate_csrf_token(request.state.admin),
                 },
             )
 
-        # Use placeholder if no API key provided — user will set their own via self-service
-        if not odoo_api_key:
-            odoo_api_key = "PENDING_USER_SETUP"
+        # User will set their own API key via self-service setup
+        odoo_api_key = "PENDING_USER_SETUP"
 
         try:
             await db_manager.create_user_connection(
