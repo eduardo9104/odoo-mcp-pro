@@ -933,40 +933,9 @@ class OdooToolHandler:
                         logger.warning(f"Could not fetch models from ir.model: {e}")
                         models = []
 
-                # Enrich with permissions for each model
-                enriched_models = []
-                for model_info in models:
-                    model_name = model_info["model"]
-                    try:
-                        # Get permissions for this model
-                        permissions = access_controller.get_model_permissions(model_name)
-                        enriched_model = {
-                            "model": model_name,
-                            "name": model_info["name"],
-                            "operations": {
-                                "read": permissions.can_read,
-                                "write": permissions.can_write,
-                                "create": permissions.can_create,
-                                "unlink": permissions.can_unlink,
-                            },
-                        }
-                        enriched_models.append(enriched_model)
-                    except Exception as e:
-                        logger.warning(f"Failed to get permissions for {model_name}: {e}")
-                        enriched_model = {
-                            "model": model_name,
-                            "name": model_info["name"],
-                            "operations": {
-                                "read": False,
-                                "write": False,
-                                "create": False,
-                                "unlink": False,
-                            },
-                        }
-                        enriched_models.append(enriched_model)
-
-                # Return proper JSON structure with enriched models array
-                return {"models": enriched_models}
+                # Return model list without per-model permission checks.
+                # Permissions are enforced per-operation to avoid N×4 API calls.
+                return {"models": models}
         except ValidationError:
             raise
         except Exception as e:

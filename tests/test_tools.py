@@ -517,25 +517,14 @@ class TestOdooToolHandler:
         partner = result.models[0]
         assert partner.model == "res.partner"
         assert partner.name == "Contact"
-        assert partner.operations is not None
-        assert partner.operations.read is True
-        assert partner.operations.write is True
-        assert partner.operations.create is True
-        assert partner.operations.unlink is False
 
         # Verify second model (sale.order)
         order = result.models[1]
         assert order.model == "sale.order"
         assert order.name == "Sales Order"
-        assert order.operations is not None
-        assert order.operations.read is True
-        assert order.operations.write is False
-        assert order.operations.create is False
-        assert order.operations.unlink is False
 
         # Verify calls
         mock_access_controller.get_enabled_models.assert_called_once()
-        assert mock_access_controller.get_model_permissions.call_count == 2
 
     @pytest.mark.asyncio
     async def test_list_models_with_permission_failures(
@@ -578,21 +567,12 @@ class TestOdooToolHandler:
         # Verify result structure (ModelsResult is a Pydantic model)
         assert len(result.models) == 2
 
-        # Verify first model (res.partner) - should have correct permissions
+        # Verify models are returned without per-model permission checks
         partner = result.models[0]
         assert partner.model == "res.partner"
-        assert partner.operations.read is True
-        assert partner.operations.write is True
-        assert partner.operations.create is False
-        assert partner.operations.unlink is False
 
-        # Verify second model (unknown.model) - should have all operations as False
         unknown = result.models[1]
         assert unknown.model == "unknown.model"
-        assert unknown.operations.read is False
-        assert unknown.operations.write is False
-        assert unknown.operations.create is False
-        assert unknown.operations.unlink is False
 
     @pytest.mark.asyncio
     async def test_list_models_error(
