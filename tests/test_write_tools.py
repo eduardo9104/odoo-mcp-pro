@@ -25,6 +25,7 @@ class TestWriteTools:
         """Create mock OdooConnection."""
         conn = Mock()
         conn.is_authenticated = True
+        conn._base_url = "http://localhost:8069"
         # Default fields_get returns common fields so essential field filtering works
         conn.fields_get.return_value = {
             "id": {"string": "ID", "type": "integer"},

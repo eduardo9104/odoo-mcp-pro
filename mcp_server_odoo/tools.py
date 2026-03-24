@@ -616,11 +616,14 @@ class OdooToolHandler:
                     else False
                 )
                 api_version = self.config.api_version if self.config else "json2"
-                odoo_url = self.config.url if self.config else "multi-tenant"
+                # Use the connection's actual URL (tenant URL), not the global config
+                odoo_url = getattr(connection, "_base_url", None) or (
+                    self.config.url if self.config else "multi-tenant"
+                )
             except Exception:
                 is_connected = False
                 api_version = self.config.api_version if self.config else "unknown"
-                odoo_url = self.config.url if self.config else "unknown"
+                odoo_url = "not connected"
 
             return ServerInfoResult(
                 version=SERVER_VERSION,
@@ -1062,7 +1065,10 @@ class OdooToolHandler:
                 record = self._process_record_dates(records[0], model, connection)
 
                 # Generate direct URL to the record in Odoo
-                base_url = self.config.url.rstrip("/") if self.config else ""
+                base_url = (
+                    getattr(connection, "_base_url", None)
+                    or (self.config.url if self.config else "")
+                ).rstrip("/")
                 record_url = f"{base_url}/web#id={record_id}&model={model}&view_type=form"
 
                 return {
@@ -1136,7 +1142,10 @@ class OdooToolHandler:
                 record = self._process_record_dates(records[0], model, connection)
 
                 # Generate direct URL to the record in Odoo
-                base_url = self.config.url.rstrip("/") if self.config else ""
+                base_url = (
+                    getattr(connection, "_base_url", None)
+                    or (self.config.url if self.config else "")
+                ).rstrip("/")
                 record_url = f"{base_url}/web#id={record_id}&model={model}&view_type=form"
 
                 return {
