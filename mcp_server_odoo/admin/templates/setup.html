@@ -78,7 +78,8 @@
                         <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ user_tenant.name }} &mdash; {{ user_tenant.odoo_url }}</p>
                     </div>
 
-                    {% if connections %}
+                    {% set has_real_key = connections and connections[0].odoo_api_key != "PENDING_USER_SETUP" if connections else false %}
+                    {% if has_real_key %}
                     <div class="px-6 py-4 flex items-center justify-between">
                         <div class="flex items-center space-x-2">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Connected</span>
@@ -131,7 +132,7 @@
                 {% endif %}
 
                 <!-- Connect with Claude -->
-                {% if connections %}
+                {% if has_real_key %}
                 <div class="bg-white dark:bg-gray-900 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800">
                     <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
                         <h2 class="text-base font-semibold text-gray-900 dark:text-white">Connect with Claude</h2>
