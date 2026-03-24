@@ -455,6 +455,8 @@ def register_admin_routes(app, db_manager):
             user_tenant = await db_manager.get_tenant_by_org_id(org_id)
 
         mcp_server_url = _get_mcp_server_url()
+        # The MCP OIDC client ID (for Claude.ai connector), not the admin panel client ID
+        oauth_client_id = os.getenv("MCP_OIDC_CLIENT_ID", os.getenv("ADMIN_OAUTH_CLIENT_ID", ""))
         templates = request.app.state.templates
         return templates.TemplateResponse(
             "setup.html",
@@ -464,6 +466,7 @@ def register_admin_routes(app, db_manager):
                 "connections": connections,
                 "user_tenant": user_tenant,
                 "mcp_server_url": mcp_server_url,
+                "oauth_client_id": oauth_client_id,
                 "csrf_token": generate_csrf_token(user),
             },
         )
