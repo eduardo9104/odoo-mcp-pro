@@ -51,10 +51,11 @@ Reverse proxy with automatic TLS. Sits in front of the MCP server and admin pane
 
 ### Admin Panel
 
-FastAPI web app mounted at `/admin`. Provides:
+Routes mounted directly into the MCP SDK's Starlette app at `/admin` (not wrapped in a separate Starlette, to preserve the SDK's lifespan management). Provides:
 - **Admin dashboard**: manage tenants, view user connections
-- **Self-service setup** (`/admin/setup`): users enter their Odoo API key
+- **Self-service setup** (`/admin/setup`): shows ALL tenants a user belongs to, each with its own API key form
 - OAuth login via Zitadel (OIDC Authorization Code + PKCE)
+- Logout clears Zitadel session (end_session endpoint) and shows account picker on next login (prompt=select_account)
 
 ---
 
@@ -145,14 +146,22 @@ User -> /admin/login -> Zitadel (OIDC + PKCE) -> /admin/callback
 
 ---
 
+## OAuth flow (Claude.ai)
+
+No custom `/.well-known/oauth-authorization-server` route. The MCP server serves Protected Resource Metadata (PRM) that points directly to Zitadel as the authorization server and includes the OIDC app Client ID (`MCP_OIDC_CLIENT_ID`). Claude.ai discovers Zitadel's endpoints via OIDC discovery fallback (`/.well-known/openid-configuration`).
+
+Claude.ai does not support dynamic client registration, so users must enter the Client ID manually in Advanced settings when adding the MCP connector.
+
+**Multi-tenant limitation**: Claude.ai can only have one active Odoo connector per browser session because Zitadel reuses the existing session. Super admins who need to access multiple orgs should use separate Zitadel accounts per org.
+
 ## User onboarding flow
 
 1. **Admin** creates a Zitadel organization for the customer
 2. **Admin** creates a tenant in the admin panel (name, Odoo URL, org ID)
 3. **Admin** shares the setup link with the customer
 4. **User** opens setup link, logs in with their company account
-5. **User** enters their Odoo API key
-6. **User** adds the MCP server URL to Claude.ai
+5. **User** enters their Odoo API key for each tenant they belong to
+6. **User** adds the MCP server URL to Claude.ai, entering the Client ID in Advanced settings
 7. Claude authenticates via OAuth, MCP server routes to the right Odoo
 
 ---
@@ -170,7 +179,9 @@ Used for production. Single MCP server serves all customers.
 | Zitadel Cloud | Identity, organizations, OAuth |
 | Caddy | Reverse proxy, TLS |
 
-Environment: `DATABASE_URL` set, `OAUTH_ISSUER_URL` set.
+Environment: `DATABASE_URL` set, `OAUTH_ISSUER_URL` set, `MCP_OIDC_CLIENT_ID` set.
+
+Deployed via Docker Compose on Hetzner VPS at `/opt/odoo-mcp-pro/deploy/`.
 
 ### Self-hosted (stdio)
 

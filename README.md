@@ -64,7 +64,7 @@ Your admin gives you a setup link. Then:
 
 1. Open the link and log in with your company account
 2. Enter your Odoo API key (see [how to generate one](SETUP.md#generating-an-odoo-api-key))
-3. Add the MCP server to Claude.ai: **Settings > Integrations > Add MCP Server**
+3. Add the MCP server to Claude.ai: **Settings > Integrations > Add MCP Server**, then click **Advanced** and enter the **Client ID** provided by your admin
 4. Ask Claude anything about your Odoo data
 
 ## For admins (Pantalytics)

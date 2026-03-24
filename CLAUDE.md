@@ -34,6 +34,7 @@ Claude.ai -> OAuth 2.1 -> MCP Server -> Odoo (customer A)
 - Each user has their own Odoo API key (stored in user_connections)
 - ConnectionRegistry caches connections per user (30 min TTL)
 - Admin panel at /admin for tenant CRUD and user self-service
+- Admin panel routes are inserted into the MCP SDK's Starlette app directly (not wrapped in a separate Starlette) to preserve the SDK's lifespan management
 
 ### Single-tenant (stdio)
 
@@ -111,11 +112,14 @@ ODOO_API_VERSION=xmlrpc  ->  OdooConnection        (Odoo 14-18)
 | Env var | Description |
 |---------|-------------|
 | `OAUTH_ISSUER_URL` | Zitadel instance URL (enables OAuth when set) |
+| `MCP_OIDC_CLIENT_ID` | OIDC app Client ID (sent in PRM for Claude.ai; no dynamic registration) |
 | `ZITADEL_INTROSPECTION_URL` | Token introspection endpoint |
 | `ZITADEL_CLIENT_ID` | Service user client ID (for introspection) |
 | `ZITADEL_CLIENT_SECRET` | Service user client secret |
 | `OAUTH_RESOURCE_SERVER_URL` | Public URL of this MCP server (for RFC 9728) |
 | `OAUTH_EXPECTED_AUDIENCE` | Optional: Zitadel app/project ID |
+
+OAuth flow: No custom `/.well-known/oauth-authorization-server` route. The Protected Resource Metadata (PRM) points directly to Zitadel as the authorization server. Claude.ai discovers Zitadel's endpoints via OIDC discovery fallback (`/.well-known/openid-configuration`).
 
 ## Development setup
 
@@ -140,12 +144,16 @@ pytest tests/ -x -q         # quick run, stop on first failure
 - Shared exceptions live in `exceptions.py`
 - No new dependencies without discussion (httpx already available)
 - Admin panel uses Jinja2 templates with Tailwind CSS (via CDN)
+- Admin panel routes are mounted directly into the MCP SDK's Starlette app (not wrapped separately)
 - Tenant = Odoo instance linked to Zitadel org
 - UserConnection = user's API key for a specific tenant
+- Setup page shows ALL tenants a user belongs to (not just org-based single tenant); each tenant has its own API key form
+- Logout clears Zitadel session (end_session endpoint) and shows account picker on next login (prompt=select_account)
+- Claude.ai limitation: only one active Odoo connector per browser session due to Zitadel session reuse; super admins use separate accounts per org
 
 ## Deployment
 
-Multi-tenant deployment uses docker-compose with:
+Multi-tenant deployment uses Docker Compose on Hetzner VPS at `/opt/odoo-mcp-pro/deploy/`:
 - MCP server container (FastMCP + admin panel)
 - Postgres container
 - Caddy container (TLS reverse proxy)

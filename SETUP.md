@@ -99,7 +99,7 @@ Claude.ai -> OAuth 2.1 -> Caddy (TLS) -> MCP Server -> Odoo (customer)
 - Redirect URIs:
   - `https://claude.ai/api/mcp/auth_callback`
   - `https://mcp.example.com/admin/callback`
-- Note the **Client ID**
+- Note the **Client ID** -- this is the `MCP_OIDC_CLIENT_ID` that users enter in Claude.ai's Advanced settings
 
 **App 2: API Application** (for token introspection)
 - Type: API
@@ -146,6 +146,7 @@ ADMIN_BOOTSTRAP_EMAIL=<your email>
 # OAuth (MCP endpoint)
 OAUTH_ISSUER_URL=https://your-instance.zitadel.cloud
 OAUTH_RESOURCE_SERVER_URL=https://mcp.example.com/mcp
+MCP_OIDC_CLIENT_ID=<OIDC app client ID from App 1>
 ZITADEL_INTROSPECTION_URL=https://your-instance.zitadel.cloud/oauth/v2/introspect
 ZITADEL_CLIENT_ID=<API app client ID>
 ZITADEL_CLIENT_SECRET=<API app client secret>
@@ -206,6 +207,9 @@ Add A records pointing to your VPS IP:
 5. **Connect Claude.ai**: Users add the MCP server in Claude.ai:
    - Settings > Integrations > Add MCP Server
    - URL: `https://mcp.example.com/mcp/`
+   - Click **Advanced** and enter the **Client ID** (the `MCP_OIDC_CLIENT_ID` from the OIDC app in Zitadel). Claude.ai does not support dynamic client registration, so this must be entered manually.
+
+> **Note**: Claude.ai can only have one active Odoo connector per browser session, because Zitadel reuses the existing session. Super admins who need to access multiple orgs should use separate Zitadel accounts per org.
 
 ---
 
