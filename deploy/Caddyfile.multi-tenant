@@ -4,7 +4,7 @@
         reverse_proxy mcp-server:8000
     }
 
-    # OAuth well-known endpoints
+    # OAuth well-known endpoints (served by MCP server)
     handle /.well-known/oauth-authorization-server {
         reverse_proxy mcp-server:8000
     }
@@ -13,6 +13,14 @@
     }
     handle /.well-known/oauth-protected-resource/* {
         reverse_proxy mcp-server:8000
+    }
+
+    # Proxy OAuth endpoints to Zitadel
+    # Claude.ai follows these from our OAuth metadata
+    handle /oauth/v2/* {
+        reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
+            header_up Host {upstream_hostport}
+        }
     }
 
     # MCP endpoint
