@@ -396,14 +396,16 @@ class OdooMCPServer:
                     registry=self.registry,
                     zitadel_issuer_url=issuer_url,
                 )
-                combined = Starlette(
-                    routes=[
-                        Mount("/admin", app=admin_app, name="admin"),
-                        Mount("/", app=mcp_asgi, name="mcp"),
-                    ]
-                )
+                # Mount admin panel as middleware on the MCP ASGI app.
+                # We can't wrap mcp_asgi in a new Starlette because that breaks
+                # the MCP SDK's lifespan (StreamableHTTPSessionManager needs its
+                # task group initialized via the app's lifespan).
+                from starlette.routing import Mount
+
+                # Insert admin routes at the beginning of mcp_asgi's routes
+                mcp_asgi.routes.insert(0, Mount("/admin", app=admin_app, name="admin"))
                 logger.info("Admin panel mounted at /admin")
-                asgi_app = combined
+                asgi_app = mcp_asgi
             else:
                 asgi_app = mcp_asgi
 
