@@ -293,6 +293,7 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
                 return RedirectResponse(url="/admin/login", status_code=302)
 
             userinfo = userinfo_response.json()
+            logger.info(f"Userinfo response keys: {list(userinfo.keys())}")
         except Exception as e:
             logger.error(f"Userinfo error: {e}")
             return RedirectResponse(url="/admin/login", status_code=302)
