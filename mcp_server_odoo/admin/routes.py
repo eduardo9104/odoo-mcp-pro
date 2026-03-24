@@ -444,27 +444,27 @@ def register_admin_routes(app, db_manager):
     @app.get("/setup")
     @require_login
     async def setup_page(request: Request):
-        """Self-service setup page: list connections and add new ones."""
+        """Self-service setup page: show all tenants the user belongs to."""
         user = request.state.user
         connections = await db_manager.get_user_connections_with_info(user["sub"])
 
-        # If user has an org_id, try to find their tenant
-        org_id = user.get("org_id", "")
-        user_tenant = None
-        if org_id:
-            user_tenant = await db_manager.get_tenant_by_org_id(org_id)
-
         mcp_server_url = _get_mcp_server_url()
-        # The MCP OIDC client ID (for Claude.ai connector), not the admin panel client ID
         oauth_client_id = os.getenv("MCP_OIDC_CLIENT_ID", os.getenv("ADMIN_OAUTH_CLIENT_ID", ""))
         templates = request.app.state.templates
+
+        # Check if any connection has a real API key
+        all_configured = all(
+            c.get("odoo_api_key") and c["odoo_api_key"] != "PENDING_USER_SETUP"
+            for c in connections
+        ) if connections else False
+
         return templates.TemplateResponse(
             "setup.html",
             {
                 "request": request,
                 "user": user,
                 "connections": connections,
-                "user_tenant": user_tenant,
+                "all_configured": all_configured,
                 "mcp_server_url": mcp_server_url,
                 "oauth_client_id": oauth_client_id,
                 "csrf_token": generate_csrf_token(user),
@@ -481,7 +481,7 @@ def register_admin_routes(app, db_manager):
     @app.post("/setup")
     @require_login
     async def setup_create(request: Request):
-        """Handle self-service connection setup."""
+        """Handle self-service API key setup for a specific tenant."""
         user = request.state.user
         form = await request.form()
 
@@ -489,48 +489,29 @@ def register_admin_routes(app, db_manager):
         if not validate_csrf_token(csrf_token):
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-        odoo_url = form.get("odoo_url", "").strip().rstrip("/")
+        tenant_id = form.get("tenant_id", "")
         odoo_api_key = form.get("odoo_api_key", "").strip()
 
-        templates = request.app.state.templates
-        mcp_server_url = _get_mcp_server_url()
-
-        if not odoo_url or not odoo_api_key:
-            connections = await db_manager.get_user_connections_with_info(user["sub"])
-            return templates.TemplateResponse(
-                "setup.html",
-                {
-                    "request": request,
-                    "user": user,
-                    "connections": connections,
-                    "mcp_server_url": mcp_server_url,
-                    "error": "Odoo URL and API Key are required.",
-                    "form_data": {"odoo_url": odoo_url},
-                    "csrf_token": generate_csrf_token(user),
-                },
-            )
+        if not tenant_id or not odoo_api_key:
+            return RedirectResponse(url="/admin/setup", status_code=302)
 
         try:
-            # Find or create the tenant entry
-            tenant = await db_manager.get_or_create_tenant_by_url(odoo_url=odoo_url, odoo_db="")
-
+            tenant_id = int(tenant_id)
             # Check if user already has a connection for this tenant
-            existing = await db_manager.get_user_connection(user["sub"], tenant.id)
+            existing = await db_manager.get_user_connection(user["sub"], tenant_id)
             if existing:
-                # Update the existing connection's API key
                 await db_manager.update_user_connection(
                     existing.id, odoo_api_key=odoo_api_key, is_active=True
                 )
-                logger.info(f"User {user['email']} updated connection to {tenant.name}")
+                logger.info(f"User {user['email']} updated API key for tenant {tenant_id}")
             else:
-                # Create new connection
                 await db_manager.create_user_connection(
                     zitadel_sub=user["sub"],
-                    tenant_id=tenant.id,
+                    tenant_id=tenant_id,
                     odoo_api_key=odoo_api_key,
                     email=user.get("email"),
                 )
-                logger.info(f"User {user['email']} created connection to {tenant.name}")
+                logger.info(f"User {user['email']} created connection to tenant {tenant_id}")
 
             connections = await db_manager.get_user_connections_with_info(user["sub"])
             return templates.TemplateResponse(
