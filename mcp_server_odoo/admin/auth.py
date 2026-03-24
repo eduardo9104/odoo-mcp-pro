@@ -342,9 +342,8 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             from urllib.parse import urlencode
 
             post_logout_uri = f"{base_url}/admin/login"
-            end_session_url = (
-                f"{issuer}/oidc/v1/end_session?"
-                + urlencode({"post_logout_redirect_uri": post_logout_uri})
+            end_session_url = f"{issuer}/oidc/v1/end_session?" + urlencode(
+                {"post_logout_redirect_uri": post_logout_uri}
             )
             response = RedirectResponse(url=end_session_url, status_code=302)
             clear_session(response)

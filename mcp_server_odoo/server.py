@@ -385,7 +385,6 @@ class OdooMCPServer:
 
             if database_url:
                 # Multi-tenant: mount admin panel alongside MCP
-                from starlette.applications import Starlette
                 from starlette.routing import Mount
 
                 from .admin.app import create_admin_app
@@ -400,7 +399,6 @@ class OdooMCPServer:
                 # We can't wrap mcp_asgi in a new Starlette because that breaks
                 # the MCP SDK's lifespan (StreamableHTTPSessionManager needs its
                 # task group initialized via the app's lifespan).
-                from starlette.routing import Mount
 
                 # Insert admin routes at the beginning of mcp_asgi's routes
                 mcp_asgi.routes.insert(0, Mount("/admin", app=admin_app, name="admin"))

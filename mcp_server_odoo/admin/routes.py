@@ -453,10 +453,14 @@ def register_admin_routes(app, db_manager):
         templates = request.app.state.templates
 
         # Check if any connection has a real API key
-        all_configured = all(
-            c.get("odoo_api_key") and c["odoo_api_key"] != "PENDING_USER_SETUP"
-            for c in connections
-        ) if connections else False
+        all_configured = (
+            all(
+                c.get("odoo_api_key") and c["odoo_api_key"] != "PENDING_USER_SETUP"
+                for c in connections
+            )
+            if connections
+            else False
+        )
 
         return templates.TemplateResponse(
             "setup.html",
