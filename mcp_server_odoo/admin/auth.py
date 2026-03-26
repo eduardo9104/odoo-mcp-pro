@@ -88,7 +88,7 @@ def set_session(response, data: dict):
         max_age=SESSION_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=os.getenv("ADMIN_COOKIE_SECURE", "false").lower() == "true",
+        secure=os.getenv("ADMIN_COOKIE_SECURE", "true").lower() == "true",
     )
 
 

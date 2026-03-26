@@ -17,6 +17,8 @@ from typing import List, Optional
 
 import asyncpg
 
+from .encryption import decrypt_api_key, encrypt_api_key
+
 logger = logging.getLogger(__name__)
 
 # Schema version for migrations
@@ -357,7 +359,11 @@ class DatabaseManager:
                 "SELECT * FROM user_connections WHERE zitadel_sub = $1",
                 zitadel_sub,
             )
-            return UserConnection(**dict(row)) if row else None
+            if not row:
+                return None
+            uc = UserConnection(**dict(row))
+            uc.odoo_api_key = decrypt_api_key(uc.odoo_api_key)
+            return uc
 
     async def upsert_user_connection(
         self,
@@ -367,6 +373,7 @@ class DatabaseManager:
         email: Optional[str] = None,
     ) -> UserConnection:
         """Create or update a user's Odoo connection."""
+        encrypted_key = encrypt_api_key(odoo_api_key)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 """INSERT INTO user_connections (zitadel_sub, email, odoo_url, odoo_api_key)
@@ -381,9 +388,11 @@ class DatabaseManager:
                 zitadel_sub,
                 email,
                 odoo_url,
-                odoo_api_key,
+                encrypted_key,
             )
             uc = UserConnection(**dict(row))
+            # Decrypt for the returned object so callers get the plaintext key
+            uc.odoo_api_key = decrypt_api_key(uc.odoo_api_key)
             logger.info(f"Upserted user connection: {zitadel_sub} -> {odoo_url}")
             return uc
 

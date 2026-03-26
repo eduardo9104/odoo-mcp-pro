@@ -132,7 +132,7 @@ class ConnectionRegistry:
 
     def revoke_user(self, zitadel_sub: str):
         """Close and remove all connections for a user."""
-        keys_to_remove = [k for k in self._connections if k.startswith(f"{zitadel_sub}:")]
+        keys_to_remove = [k for k in self._connections if k == zitadel_sub]
         for key in keys_to_remove:
             self._close_connection(key)
         if keys_to_remove:

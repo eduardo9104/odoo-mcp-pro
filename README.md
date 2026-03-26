@@ -17,7 +17,10 @@
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-green.svg" alt="MCP Compatible"/></a>
   <a href="https://www.odoo.com/documentation/19.0/developer/reference/external_api.html"><img src="https://img.shields.io/badge/Odoo-19%2B%20JSON%2F2-714b67.svg" alt="Odoo 19+ JSON/2"/></a>
   <a href="https://oauth.net/2.1/"><img src="https://img.shields.io/badge/OAuth-2.1-orange.svg" alt="OAuth 2.1"/></a>
+  <img src="https://img.shields.io/badge/Status-Free%20Beta-brightgreen.svg" alt="Free Beta"/>
 </p>
+
+> **Free Beta** -- The hosted version of odoo-mcp-pro is currently available for free during the beta period. Paid plans will be introduced once the service reaches general availability. Self-hosted (local mode) will always remain free.
 
 ---
 
@@ -136,9 +139,11 @@ Plus 4 MCP resources for URI-based access to records, search results, field defi
 ## Security
 
 - **User data stays in Odoo.** The MCP server is a stateless proxy -- nothing is stored or cached beyond the session.
+- **API keys are encrypted at rest using AES-128 (Fernet).** Your Odoo API key is stored in a managed Postgres database with encryption. It is only used server-side to authenticate requests to your Odoo instance -- it is never exposed to Claude, sent to the browser, or logged.
 - **API keys stay server-side.** Users authenticate via OAuth tokens. The Odoo API key never leaves the server.
 - **Odoo enforces permissions.** Each user's API key determines what they can see and do. ACLs and record rules apply as normal.
 - **Per-user isolation.** Each user gets their own OAuth token and their own Odoo API key.
+- **You stay in control.** You can revoke your API key in Odoo at any time, instantly cutting off access. You can also remove your connection from the setup page.
 
 See [architecture.md](architecture.md) for the full security model.
 

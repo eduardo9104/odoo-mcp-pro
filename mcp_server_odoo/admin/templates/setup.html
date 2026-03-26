@@ -88,6 +88,16 @@
         <div class="flex-1 flex items-start justify-center py-8 px-6">
             <div class="w-full max-w-2xl space-y-6">
 
+                <!-- Beta Banner -->
+                <div class="bg-green-900/30 border border-green-500/30 rounded-xl px-6 py-4">
+                    <div class="flex items-center space-x-3">
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-green-600 text-white uppercase tracking-wide">Free Beta</span>
+                        <p class="text-sm text-green-300/80">
+                            The hosted version is currently free during the beta period. Paid plans will be introduced at general availability.
+                        </p>
+                    </div>
+                </div>
+
                 <!-- Your Odoo Connection -->
                 <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
                     <div class="px-6 py-4 flex items-center justify-between border-b border-white/10">
@@ -152,6 +162,33 @@
                         </form>
                     </div>
                     {% endif %}
+                </div>
+
+                <!-- Security Info -->
+                <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
+                    <div class="px-6 py-4 border-b border-white/10">
+                        <h2 class="text-base font-heading font-medium text-white">How your API key is protected</h2>
+                    </div>
+                    <div class="px-6 py-4 space-y-3">
+                        <ul class="space-y-2 text-sm text-white/60">
+                            <li class="flex items-start">
+                                <svg class="w-4 h-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Your API key is stored securely and only accessible by the server.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-4 h-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>The key is only used server-side to authenticate requests to your Odoo instance on your behalf.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-4 h-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Odoo enforces permissions -- your API key determines what Claude can see and do, just like when you use Odoo directly.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-4 h-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>You can revoke your API key in Odoo at any time, instantly cutting off access. You can also remove your connection above.</span>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
 
                 <!-- Connect with Claude -->
