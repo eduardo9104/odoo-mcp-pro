@@ -23,6 +23,11 @@
         }
     }
 
+    # DCR endpoint (RFC 7591 — Claude.ai auto-registers here)
+    handle /register {
+        reverse_proxy mcp-server:8000
+    }
+
     # MCP endpoint
     handle /mcp {
         reverse_proxy mcp-server:8000
