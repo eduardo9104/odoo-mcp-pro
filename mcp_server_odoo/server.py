@@ -123,7 +123,11 @@ class OdooMCPServer:
         from starlette.responses import JSONResponse
 
         zitadel = zitadel_issuer_url.rstrip("/") if zitadel_issuer_url else issuer_url.rstrip("/")
-        mcp_server_root = resource_server_url.rstrip("/")
+        # Extract server root (without /mcp path) for authorization_servers
+        from urllib.parse import urlparse
+
+        parsed = urlparse(resource_server_url)
+        server_root = f"{parsed.scheme}://{parsed.netloc}"
         oidc_client_id = os.getenv("MCP_OIDC_CLIENT_ID", "").strip()
 
         @self.app.custom_route(
@@ -134,7 +138,7 @@ class OdooMCPServer:
             return JSONResponse(
                 {
                     "resource": resource_server_url,
-                    "authorization_servers": [mcp_server_root],
+                    "authorization_servers": [server_root],
                     "scopes_supported": [
                         "openid",
                         "profile",
@@ -152,10 +156,10 @@ class OdooMCPServer:
         async def oauth_authorization_server_metadata(request: Request) -> JSONResponse:
             return JSONResponse(
                 {
-                    "issuer": mcp_server_root,
+                    "issuer": server_root,
                     "authorization_endpoint": f"{zitadel}/oauth/v2/authorize",
                     "token_endpoint": f"{zitadel}/oauth/v2/token",
-                    "registration_endpoint": f"{mcp_server_root}/register",
+                    "registration_endpoint": f"{server_root}/register",
                     "scopes_supported": [
                         "openid",
                         "profile",
