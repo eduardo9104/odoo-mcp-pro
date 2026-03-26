@@ -16,7 +16,20 @@
     }
 
     # Proxy OAuth endpoints to Zitadel
-    # Claude.ai follows these from our OAuth metadata
+    # Claude.ai (web) constructs /authorize and /token relative to server root,
+    # ignoring authorization_endpoint/token_endpoint from metadata
+    handle /authorize {
+        rewrite * /oauth/v2/authorize{query}
+        reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
+            header_up Host {upstream_hostport}
+        }
+    }
+    handle /token {
+        rewrite * /oauth/v2/token
+        reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
+            header_up Host {upstream_hostport}
+        }
+    }
     handle /oauth/v2/* {
         reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
             header_up Host {upstream_hostport}
