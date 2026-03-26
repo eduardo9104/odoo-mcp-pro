@@ -56,19 +56,13 @@ class ConnectionRegistry:
         self.ttl = ttl
         self._connections: Dict[str, CachedConnection] = {}
 
-    def _cache_key(self, zitadel_sub: str, tenant_id: int) -> str:
-        return f"{zitadel_sub}:{tenant_id}"
-
-    async def get_connection(self, zitadel_sub: str, org_id: str = "") -> CachedConnection:
+    async def get_connection(self, zitadel_sub: str) -> CachedConnection:
         """Get or create an Odoo connection for an authenticated user.
 
-        Resolution order:
-        1. If org_id is provided, find the tenant linked to that Zitadel org
-        2. Otherwise, use the user's first (or only) active connection
+        Looks up the user's self-service Odoo connection from user_connections.
 
         Args:
             zitadel_sub: Zitadel subject ID of the authenticated user
-            org_id: Optional Zitadel organization ID (from token claims)
 
         Returns:
             CachedConnection with connection and access controller
@@ -76,63 +70,36 @@ class ConnectionRegistry:
         Raises:
             OdooConnectionError: If user has no connection or connection fails
         """
-        mapping = None
-
-        # If org_id provided, try to find tenant by org_id first
-        if org_id:
-            tenant = await self.db_manager.get_tenant_by_org_id(org_id)
-            if tenant:
-                mapping = await self.db_manager.get_user_connection(zitadel_sub, tenant.id)
-                if not mapping or not mapping.is_active:
-                    setup_url = os.getenv("ADMIN_BASE_URL", "").rstrip("/")
-                    if setup_url:
-                        raise OdooConnectionError(
-                            f"No Odoo connection configured for your organization. "
-                            f"Set up your connection at {setup_url}/admin/setup"
-                        )
-                    raise OdooConnectionError(
-                        f"User {zitadel_sub} is not approved for organization {org_id}. "
-                        "Contact an administrator to get access."
-                    )
-
-        if not mapping:
-            # Fall back to user's first active connection
-            mappings = await self.db_manager.get_user_connections(zitadel_sub)
-            if not mappings:
-                setup_url = os.getenv("ADMIN_BASE_URL", "").rstrip("/")
-                if setup_url:
-                    raise OdooConnectionError(
-                        f"No Odoo connection configured. "
-                        f"Set up your connection at {setup_url}/admin/setup"
-                    )
-                raise OdooConnectionError(
-                    f"User {zitadel_sub} has no approved tenant access. "
-                    "Contact an administrator to get access."
-                )
-            mapping = mappings[0]
-
         # Check cache
-        key = self._cache_key(zitadel_sub, mapping.tenant_id)
-        cached = self._connections.get(key)
+        cached = self._connections.get(zitadel_sub)
         if cached and not cached.is_expired(self.ttl):
             cached.touch()
             return cached
 
         # Remove expired entry if present
         if cached:
-            self._close_connection(key)
+            self._close_connection(zitadel_sub)
 
-        # Look up tenant config
-        tenant = await self.db_manager.get_tenant(mapping.tenant_id)
-        if not tenant or not tenant.is_active:
-            raise OdooConnectionError(f"Tenant {mapping.tenant_id} is not active")
+        # Look up user's connection
+        user_conn = await self.db_manager.get_user_connection_by_sub(zitadel_sub)
+        if not user_conn or not user_conn.is_active:
+            setup_url = os.getenv("ADMIN_BASE_URL", "").rstrip("/")
+            if setup_url:
+                raise OdooConnectionError(
+                    f"No Odoo connection configured. "
+                    f"Set up your connection at {setup_url}/admin/setup"
+                )
+            raise OdooConnectionError(
+                f"User {zitadel_sub} has no Odoo connection configured. "
+                "Set up your connection first."
+            )
 
         # Create connection
         config = OdooConfig(
-            url=tenant.odoo_url,
-            database=tenant.odoo_db,
-            api_key=mapping.odoo_api_key,
-            api_version=tenant.api_version,
+            url=user_conn.odoo_url,
+            database="",
+            api_key=user_conn.odoo_api_key,
+            api_version="json2",
         )
 
         try:
@@ -140,7 +107,7 @@ class ConnectionRegistry:
             conn.connect()
             conn.authenticate()
         except Exception as e:
-            raise OdooConnectionError(f"Failed to connect to {tenant.odoo_url}: {e}") from e
+            raise OdooConnectionError(f"Failed to connect to {user_conn.odoo_url}: {e}") from e
 
         access_controller = AccessController(config, connection=conn)
 
@@ -149,11 +116,9 @@ class ConnectionRegistry:
             access_controller=access_controller,
             config=config,
         )
-        self._connections[key] = cached
+        self._connections[zitadel_sub] = cached
 
-        logger.info(
-            f"Created connection for user {zitadel_sub} to {tenant.name} ({tenant.odoo_url})"
-        )
+        logger.info(f"Created connection for user {zitadel_sub} to {user_conn.odoo_url}")
         return cached
 
     def _close_connection(self, key: str):

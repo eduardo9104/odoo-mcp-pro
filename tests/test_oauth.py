@@ -63,8 +63,8 @@ class TestZitadelTokenVerifier:
         assert result.expires_at == 9999999999
 
     @pytest.mark.asyncio
-    async def test_active_token_with_org_packs_client_id(self, verifier):
-        """Test that org_id from resource owner claims is packed into client_id."""
+    async def test_active_token_with_org_uses_sub_only(self, verifier):
+        """Test that org claims are ignored -- client_id is just the sub."""
         mock_response = _mock_introspection_response(
             200,
             {
@@ -87,12 +87,9 @@ class TestZitadelTokenVerifier:
             result = await verifier.verify_token("valid-token")
 
         assert result is not None
-        # client_id should be packed as "sub:org_id"
-        assert result.client_id == "user-123:org-456"
-        # Downstream code can split on ":"
-        sub, org_id = result.client_id.split(":", 1)
-        assert sub == "user-123"
-        assert org_id == "org-456"
+        # Single-org model: client_id is just the sub, no org packing
+        assert result.client_id == "user-123"
+        assert ":" not in result.client_id
 
     @pytest.mark.asyncio
     async def test_active_token_without_org_uses_sub_only(self, verifier):

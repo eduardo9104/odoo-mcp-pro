@@ -208,7 +208,7 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             "response_type": "code",
             "client_id": client_id,
             "redirect_uri": redirect_uri,
-            "scope": "openid profile email urn:zitadel:iam:user:resourceowner",
+            "scope": "openid profile email",
             "state": state,
             "code_challenge": code_challenge_b64,
             "code_challenge_method": "S256",
@@ -302,10 +302,6 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         zitadel_sub = userinfo.get("sub", "")
         email = userinfo.get("email", "")
 
-        # Extract Zitadel organization claims (resource owner)
-        org_id = userinfo.get("urn:zitadel:iam:user:resourceowner:id", "")
-        org_name = userinfo.get("urn:zitadel:iam:user:resourceowner:name", "")
-
         # Check if user is admin
         is_admin = await db_manager.is_admin(zitadel_sub)
 
@@ -313,13 +309,11 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         session_data = {
             "sub": zitadel_sub,
             "email": email,
-            "org_id": org_id,
-            "org_name": org_name,
             "is_admin": is_admin,
         }
 
-        # Redirect admins to dashboard, regular users to setup
-        redirect_url = "/admin/" if is_admin else "/admin/setup"
+        # All users go to setup page (admins can still access /admin/ via link)
+        redirect_url = "/admin/setup"
         response = RedirectResponse(url=redirect_url, status_code=302)
         set_session(response, session_data)
 

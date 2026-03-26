@@ -115,17 +115,8 @@ class ZitadelTokenVerifier(TokenVerifier):
             # so tool handlers can identify the authenticated user via auth_context_var
             zitadel_sub = data.get("sub", data.get("client_id", "unknown"))
 
-            # Extract Zitadel organization claims (resource owner)
-            # These are present when scope urn:zitadel:iam:user:resourceowner is requested
-            org_id = data.get("urn:zitadel:iam:user:resourceowner:id", "")
-            org_name = data.get("urn:zitadel:iam:user:resourceowner:name", "")
-
-            if org_id:
-                logger.debug(f"Token has org context: org_id={org_id}, org_name={org_name}")
-
-            # Pack sub + org_id into client_id for downstream access
-            # Tools/resources can split on ":" to get both values
-            client_id = f"{zitadel_sub}:{org_id}" if org_id else zitadel_sub
+            # Single-org model: just use sub directly as client_id
+            client_id = zitadel_sub
 
             # Extract expiry
             expires_at = data.get("exp")

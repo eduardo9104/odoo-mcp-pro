@@ -89,25 +89,32 @@ class OdooMCPServer:
                 if auth_settings.resource_server_url
                 else None
             )
+            oauth_issuer_url = os.getenv("OAUTH_ISSUER_URL", "").strip()
             self._register_oauth_metadata_route(
                 str(auth_settings.issuer_url),
                 resource_server_url=resource_url,
+                zitadel_issuer_url=oauth_issuer_url,
             )
 
         logger.info(f"Initialized Odoo MCP Server v{SERVER_VERSION}")
 
     def _register_oauth_metadata_route(
-        self, issuer_url: str, resource_server_url: str | None = None
+        self,
+        issuer_url: str,
+        resource_server_url: str | None = None,
+        zitadel_issuer_url: str = "",
     ):
-        """Register custom PRM endpoint (RFC 9728).
+        """Register OAuth metadata endpoints.
 
-        The MCP SDK auto-generates a PRM at /.well-known/oauth-protected-resource/mcp
-        but with minimal scopes. This custom route at /.well-known/oauth-protected-resource
-        ensures the full scopes are advertised and points directly to Zitadel.
+        Registers:
+        - /.well-known/oauth-protected-resource (RFC 9728 PRM)
+        - /.well-known/oauth-authorization-server (RFC 8414 OASM)
+        - /register (RFC 7591 DCR — returns pre-configured client_id)
 
-        No custom /.well-known/oauth-authorization-server route is needed — Claude.ai
-        discovers Zitadel's endpoints via /.well-known/openid-configuration (the MCP SDK
-        client falls back to OIDC discovery when RFC 8414 metadata is unavailable).
+        Claude.ai (web) constructs auth URLs relative to the MCP server root,
+        so we serve our own OASM that points to Zitadel's actual endpoints.
+        The DCR endpoint allows Claude.ai to auto-discover the client_id
+        without users needing to enter it in Advanced Settings.
         """
         if not resource_server_url:
             return
@@ -115,24 +122,75 @@ class OdooMCPServer:
         from starlette.requests import Request
         from starlette.responses import JSONResponse
 
+        zitadel = zitadel_issuer_url.rstrip("/") if zitadel_issuer_url else issuer_url.rstrip("/")
+        mcp_server_root = resource_server_url.rstrip("/")
+        oidc_client_id = os.getenv("MCP_OIDC_CLIENT_ID", "").strip()
+
         @self.app.custom_route(
             "/.well-known/oauth-protected-resource",
             methods=["GET"],
         )
         async def protected_resource_metadata(request: Request) -> JSONResponse:
-            issuer = issuer_url.rstrip("/")
             return JSONResponse(
                 {
                     "resource": resource_server_url,
-                    "authorization_servers": [issuer],
+                    "authorization_servers": [mcp_server_root],
                     "scopes_supported": [
                         "openid",
                         "profile",
                         "email",
                         "offline_access",
-                        "urn:zitadel:iam:user:resourceowner",
                     ],
                     "bearer_methods_supported": ["header"],
+                }
+            )
+
+        @self.app.custom_route(
+            "/.well-known/oauth-authorization-server",
+            methods=["GET"],
+        )
+        async def oauth_authorization_server_metadata(request: Request) -> JSONResponse:
+            return JSONResponse(
+                {
+                    "issuer": mcp_server_root,
+                    "authorization_endpoint": f"{zitadel}/oauth/v2/authorize",
+                    "token_endpoint": f"{zitadel}/oauth/v2/token",
+                    "registration_endpoint": f"{mcp_server_root}/register",
+                    "scopes_supported": [
+                        "openid",
+                        "profile",
+                        "email",
+                        "offline_access",
+                    ],
+                    "response_types_supported": ["code"],
+                    "grant_types_supported": [
+                        "authorization_code",
+                        "refresh_token",
+                    ],
+                    "token_endpoint_auth_methods_supported": ["none"],
+                    "code_challenge_methods_supported": ["S256"],
+                }
+            )
+
+        @self.app.custom_route("/register", methods=["POST"])
+        async def register_client(request: Request) -> JSONResponse:
+            """RFC 7591 Dynamic Client Registration (stub).
+
+            Returns the pre-configured OIDC app client_id from Zitadel.
+            Nothing is stored — all clients share the same Zitadel OIDC app.
+            """
+            body = await request.json()
+            redirect_uris = body.get("redirect_uris", [])
+            client_name = body.get("client_name", "unknown")
+
+            return JSONResponse(
+                {
+                    "client_id": oidc_client_id,
+                    "client_name": client_name,
+                    "redirect_uris": redirect_uris,
+                    "grant_types": ["authorization_code", "refresh_token"],
+                    "response_types": ["code"],
+                    "token_endpoint_auth_method": "none",
                 }
             )
 
@@ -181,11 +239,12 @@ class OdooMCPServer:
         # Required scopes that every token must have (enforced by MCP middleware)
         required_scopes = ["openid"]
 
-        # Point authorization_servers directly to Zitadel. Claude.ai will
-        # discover Zitadel's OIDC config via /.well-known/openid-configuration
-        # (the MCP SDK falls back to OIDC discovery when RFC 8414 is unavailable).
+        # Use the MCP server root as the issuer URL for OASM discovery.
+        # Claude.ai constructs auth URLs relative to the MCP server root,
+        # and our custom OASM route proxies to Zitadel's actual endpoints.
+        oasm_issuer = resource_server_url or issuer_url
         auth_settings = AuthSettings(
-            issuer_url=issuer_url,
+            issuer_url=oasm_issuer,
             resource_server_url=resource_server_url,
             required_scopes=required_scopes,
         )

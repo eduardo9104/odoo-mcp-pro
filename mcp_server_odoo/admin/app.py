@@ -79,36 +79,22 @@ def create_admin_app(db_manager, registry=None, zitadel_issuer_url: str = ""):
 
             role = request.query_params.get("role", "admin")
 
-            if role == "orgadmin":
-                sub = "orgadmin-test-user"
-                email = "orgadmin@company-a.com"
-                org_id = "org-company-a"
-                org_name = "Company A"
-                is_admin = False
-                redirect_url = "/admin/setup"
-            elif role == "user":
+            if role == "user":
                 sub = "regular-test-user"
                 email = "user@company-a.com"
-                org_id = "org-company-a"
-                org_name = "Company A"
                 is_admin = False
-                redirect_url = "/admin/setup"
             else:
                 sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "dev-admin")
                 email = os.getenv("ADMIN_BOOTSTRAP_EMAIL", "dev@localhost")
-                org_id = ""
-                org_name = ""
                 is_admin = True
-                redirect_url = "/admin/"
 
+            redirect_url = "/admin/setup"
             resp = RedirectResponse(url=redirect_url, status_code=302)
             set_session(
                 resp,
                 {
                     "sub": sub,
                     "email": email,
-                    "org_id": org_id,
-                    "org_name": org_name,
                     "is_admin": is_admin,
                 },
             )

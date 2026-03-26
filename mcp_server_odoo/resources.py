@@ -87,13 +87,8 @@ class OdooResourceHandler:
 
                 access_token = get_access_token()
                 if access_token is not None:
-                    # Parse sub:org_id format packed by ZitadelTokenVerifier
-                    client_id = access_token.client_id
-                    if ":" in client_id:
-                        sub, org_id = client_id.split(":", 1)
-                    else:
-                        sub, org_id = client_id, ""
-                    cached = await self.registry.get_connection(sub, org_id)
+                    sub = access_token.client_id
+                    cached = await self.registry.get_connection(sub)
                     return cached.connection, cached.access_controller
             except Exception:
                 pass

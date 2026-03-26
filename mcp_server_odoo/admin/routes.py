@@ -444,33 +444,20 @@ def register_admin_routes(app, db_manager):
     @app.get("/setup")
     @require_login
     async def setup_page(request: Request):
-        """Self-service setup page: show all tenants the user belongs to."""
+        """Self-service setup page: user manages their own Odoo connection."""
         user = request.state.user
-        connections = await db_manager.get_user_connections_with_info(user["sub"])
+        connection = await db_manager.get_user_connection_by_sub(user["sub"])
 
         mcp_server_url = _get_mcp_server_url()
-        oauth_client_id = os.getenv("MCP_OIDC_CLIENT_ID", os.getenv("ADMIN_OAUTH_CLIENT_ID", ""))
         templates = request.app.state.templates
-
-        # Check if any connection has a real API key
-        all_configured = (
-            all(
-                c.get("odoo_api_key") and c["odoo_api_key"] != "PENDING_USER_SETUP"
-                for c in connections
-            )
-            if connections
-            else False
-        )
 
         return templates.TemplateResponse(
             "setup.html",
             {
                 "request": request,
                 "user": user,
-                "connections": connections,
-                "all_configured": all_configured,
+                "connection": connection,
                 "mcp_server_url": mcp_server_url,
-                "oauth_client_id": oauth_client_id,
                 "csrf_token": generate_csrf_token(user),
             },
         )
@@ -484,8 +471,8 @@ def register_admin_routes(app, db_manager):
 
     @app.post("/setup")
     @require_login
-    async def setup_create(request: Request):
-        """Handle self-service API key setup for a specific tenant."""
+    async def setup_save(request: Request):
+        """Save the user's Odoo connection (URL + API key)."""
         user = request.state.user
         form = await request.form()
 
@@ -493,39 +480,29 @@ def register_admin_routes(app, db_manager):
         if not validate_csrf_token(csrf_token):
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-        tenant_id = form.get("tenant_id", "")
+        odoo_url = form.get("odoo_url", "").strip()
         odoo_api_key = form.get("odoo_api_key", "").strip()
 
-        if not tenant_id or not odoo_api_key:
+        if not odoo_url or not odoo_api_key:
             return RedirectResponse(url="/admin/setup", status_code=302)
 
         try:
-            tenant_id = int(tenant_id)
-            # Check if user already has a connection for this tenant
-            existing = await db_manager.get_user_connection(user["sub"], tenant_id)
-            if existing:
-                await db_manager.update_user_connection(
-                    existing.id, odoo_api_key=odoo_api_key, is_active=True
-                )
-                logger.info(f"User {user['email']} updated API key for tenant {tenant_id}")
-            else:
-                await db_manager.create_user_connection(
-                    zitadel_sub=user["sub"],
-                    tenant_id=tenant_id,
-                    odoo_api_key=odoo_api_key,
-                    email=user.get("email"),
-                )
-                logger.info(f"User {user['email']} created connection to tenant {tenant_id}")
-
+            await db_manager.upsert_user_connection(
+                zitadel_sub=user["sub"],
+                odoo_url=odoo_url,
+                odoo_api_key=odoo_api_key,
+                email=user.get("email"),
+            )
+            logger.info(f"User {user['email']} saved connection to {odoo_url}")
             return RedirectResponse(url="/admin/setup", status_code=302)
         except Exception as e:
-            logger.error(f"Failed to save API key for {user['email']}: {e}")
+            logger.error(f"Failed to save connection for {user['email']}: {e}")
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-    @app.post("/setup/{mapping_id}/delete")
+    @app.post("/setup/delete")
     @require_login
-    async def setup_delete(request: Request, mapping_id: int):
-        """Delete own connection mapping."""
+    async def setup_delete(request: Request):
+        """Delete the user's own connection."""
         user = request.state.user
         form = await request.form()
 
@@ -533,21 +510,7 @@ def register_admin_routes(app, db_manager):
         if not validate_csrf_token(csrf_token):
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-        # Verify the mapping belongs to this user
-        all_mappings = await db_manager.get_user_connections_with_info(user["sub"])
-        owns_mapping = any(m["id"] == mapping_id for m in all_mappings)
-
-        if not owns_mapping:
-            logger.warning(
-                f"User {user['email']} tried to delete mapping {mapping_id} they don't own"
-            )
-            return RedirectResponse(url="/admin/setup", status_code=302)
-
-        await db_manager.delete_user_connection(mapping_id)
-        logger.info(f"User {user['email']} deleted connection mapping {mapping_id}")
-
-        # If htmx request, return empty content (row removed)
-        if request.headers.get("HX-Request"):
-            return HTMLResponse("")
+        await db_manager.delete_user_connection_by_sub(user["sub"])
+        logger.info(f"User {user['email']} deleted their connection")
 
         return RedirectResponse(url="/admin/setup", status_code=302)

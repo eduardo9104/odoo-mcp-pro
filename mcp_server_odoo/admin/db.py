@@ -20,10 +20,10 @@ import asyncpg
 logger = logging.getLogger(__name__)
 
 # Schema version for migrations
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
--- Tenants: Odoo instances linked to Zitadel organizations
+-- Tenants: Odoo instances linked to Zitadel organizations (legacy, kept for compatibility)
 CREATE TABLE IF NOT EXISTS tenants (
     id              SERIAL PRIMARY KEY,
     name            TEXT NOT NULL,
@@ -45,17 +45,17 @@ CREATE TABLE IF NOT EXISTS admins (
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- User connections: each user has their own Odoo API key per tenant
+-- User connections: self-service, each user manages their own Odoo connection
+-- v3: one connection per user (no tenant dependency)
 CREATE TABLE IF NOT EXISTS user_connections (
     id           SERIAL PRIMARY KEY,
-    zitadel_sub  TEXT NOT NULL,
+    zitadel_sub  TEXT NOT NULL UNIQUE,
     email        TEXT,
-    tenant_id    INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    odoo_url     TEXT NOT NULL,
     odoo_api_key TEXT NOT NULL,
     is_active    BOOLEAN NOT NULL DEFAULT TRUE,
     created_at   TIMESTAMPTZ DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(zitadel_sub, tenant_id)
+    updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Schema version tracking
@@ -63,6 +63,38 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
+"""
+
+# Migration from v2 (tenant-based user_connections) to v3 (self-service)
+MIGRATION_V2_TO_V3 = """
+-- Recreate user_connections without tenant dependency
+-- First, save existing data
+CREATE TABLE IF NOT EXISTS user_connections_v2_backup AS SELECT * FROM user_connections;
+
+-- Drop old table and recreate
+DROP TABLE IF EXISTS user_connections;
+
+CREATE TABLE user_connections (
+    id           SERIAL PRIMARY KEY,
+    zitadel_sub  TEXT NOT NULL UNIQUE,
+    email        TEXT,
+    odoo_url     TEXT NOT NULL,
+    odoo_api_key TEXT NOT NULL,
+    is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Migrate data: join with tenants to get odoo_url, take first connection per user
+INSERT INTO user_connections (zitadel_sub, email, odoo_url, odoo_api_key, is_active, created_at, updated_at)
+SELECT DISTINCT ON (uc.zitadel_sub)
+    uc.zitadel_sub, uc.email, t.odoo_url, uc.odoo_api_key, uc.is_active, uc.created_at, uc.updated_at
+FROM user_connections_v2_backup uc
+JOIN tenants t ON uc.tenant_id = t.id
+ORDER BY uc.zitadel_sub, uc.updated_at DESC;
+
+-- Update schema version
+INSERT INTO schema_version (version) VALUES (3);
 """
 
 # Migration from v1 (odoo_databases/user_databases) to v2 (tenants/user_connections)
@@ -99,7 +131,7 @@ class UserConnection:
     id: int
     zitadel_sub: str
     email: Optional[str]
-    tenant_id: int
+    odoo_url: str
     odoo_api_key: str
     is_active: bool
     created_at: datetime
@@ -144,7 +176,7 @@ class DatabaseManager:
     async def _init_schema(self):
         """Initialize database schema."""
         async with self._pool.acquire() as conn:
-            # Check if we need to migrate from v1
+            # Check current schema version
             try:
                 row = await conn.fetchrow(
                     "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
@@ -154,7 +186,7 @@ class DatabaseManager:
                 current_version = 0
 
             if current_version == 0:
-                # Fresh install: create v2 schema directly
+                # Fresh install: create v3 schema directly
                 await conn.execute(SCHEMA_SQL)
                 row = await conn.fetchrow(
                     "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
@@ -164,12 +196,25 @@ class DatabaseManager:
                         "INSERT INTO schema_version (version) VALUES ($1)", SCHEMA_VERSION
                     )
             elif current_version < 2:
-                # Migrate from v1 to v2
+                # Migrate from v1 to v2 first, then to v3
                 try:
                     await conn.execute(MIGRATION_V1_TO_V2)
                     logger.info("Migrated database schema from v1 to v2")
                 except Exception as e:
                     logger.warning(f"Migration v1->v2 skipped (may already be done): {e}")
+                # Then migrate to v3
+                try:
+                    await conn.execute(MIGRATION_V2_TO_V3)
+                    logger.info("Migrated database schema from v2 to v3")
+                except Exception as e:
+                    logger.warning(f"Migration v2->v3 skipped (may already be done): {e}")
+            elif current_version < 3:
+                # Migrate from v2 to v3
+                try:
+                    await conn.execute(MIGRATION_V2_TO_V3)
+                    logger.info("Migrated database schema from v2 to v3")
+                except Exception as e:
+                    logger.warning(f"Migration v2->v3 skipped (may already be done): {e}")
 
         # Bootstrap admin if configured
         bootstrap_sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "").strip()
@@ -303,90 +348,55 @@ class DatabaseManager:
             result = await conn.execute("DELETE FROM tenants WHERE id = $1", tenant_id)
             return result == "DELETE 1"
 
-    # --- User Connections ---
+    # --- User Connections (v3: self-service, one per user) ---
 
-    async def list_users_for_tenant(self, tenant_id: int) -> List[UserConnection]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT * FROM user_connections WHERE tenant_id = $1 ORDER BY email, zitadel_sub",
-                tenant_id,
-            )
-            return [UserConnection(**dict(r)) for r in rows]
-
-    async def get_user_connection(
-        self, zitadel_sub: str, tenant_id: int
-    ) -> Optional[UserConnection]:
+    async def get_user_connection_by_sub(self, zitadel_sub: str) -> Optional[UserConnection]:
+        """Get a user's Odoo connection by their Zitadel subject ID."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM user_connections WHERE zitadel_sub = $1 AND tenant_id = $2",
+                "SELECT * FROM user_connections WHERE zitadel_sub = $1",
                 zitadel_sub,
-                tenant_id,
             )
             return UserConnection(**dict(row)) if row else None
 
-    async def get_user_connections_with_info(self, zitadel_sub: str) -> list:
-        """Get all connection mappings for a user, including tenant details."""
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """SELECT uc.*, t.name as db_name, t.odoo_url, t.odoo_db,
-                          t.is_active as db_is_active
-                   FROM user_connections uc
-                   JOIN tenants t ON uc.tenant_id = t.id
-                   WHERE uc.zitadel_sub = $1
-                   ORDER BY t.name""",
-                zitadel_sub,
-            )
-            return [dict(r) for r in rows]
-
-    async def get_user_connections(self, zitadel_sub: str) -> List[UserConnection]:
-        """Get all active connection mappings for a user."""
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """SELECT uc.* FROM user_connections uc
-                   JOIN tenants t ON uc.tenant_id = t.id
-                   WHERE uc.zitadel_sub = $1 AND uc.is_active = TRUE AND t.is_active = TRUE
-                   ORDER BY t.name""",
-                zitadel_sub,
-            )
-            return [UserConnection(**dict(r)) for r in rows]
-
-    async def create_user_connection(
-        self, zitadel_sub: str, tenant_id: int, odoo_api_key: str, email: Optional[str] = None
+    async def upsert_user_connection(
+        self,
+        zitadel_sub: str,
+        odoo_url: str,
+        odoo_api_key: str,
+        email: Optional[str] = None,
     ) -> UserConnection:
+        """Create or update a user's Odoo connection."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                """INSERT INTO user_connections (zitadel_sub, email, tenant_id, odoo_api_key)
-                   VALUES ($1, $2, $3, $4) RETURNING *""",
+                """INSERT INTO user_connections (zitadel_sub, email, odoo_url, odoo_api_key)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (zitadel_sub) DO UPDATE SET
+                       email = COALESCE($2, user_connections.email),
+                       odoo_url = $3,
+                       odoo_api_key = $4,
+                       is_active = TRUE,
+                       updated_at = NOW()
+                   RETURNING *""",
                 zitadel_sub,
                 email,
-                tenant_id,
+                odoo_url,
                 odoo_api_key,
             )
-            mapping = UserConnection(**dict(row))
-            logger.info(f"Created user connection: {zitadel_sub} -> tenant {tenant_id}")
-            return mapping
-
-    async def update_user_connection(
-        self, connection_id: int, **kwargs
-    ) -> Optional[UserConnection]:
-        allowed = {"odoo_api_key", "email", "is_active"}
-        updates = {k: v for k, v in kwargs.items() if k in allowed}
-        if not updates:
-            return None
-
-        sets = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(updates))
-        sets += ", updated_at = NOW()"
-        values = [connection_id] + list(updates.values())
-
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                f"UPDATE user_connections SET {sets} WHERE id = $1 RETURNING *", *values
-            )
-            return UserConnection(**dict(row)) if row else None
+            uc = UserConnection(**dict(row))
+            logger.info(f"Upserted user connection: {zitadel_sub} -> {odoo_url}")
+            return uc
 
     async def delete_user_connection(self, connection_id: int) -> bool:
         async with self._pool.acquire() as conn:
             result = await conn.execute("DELETE FROM user_connections WHERE id = $1", connection_id)
+            return result == "DELETE 1"
+
+    async def delete_user_connection_by_sub(self, zitadel_sub: str) -> bool:
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM user_connections WHERE zitadel_sub = $1", zitadel_sub
+            )
             return result == "DELETE 1"
 
     # --- Admins ---
