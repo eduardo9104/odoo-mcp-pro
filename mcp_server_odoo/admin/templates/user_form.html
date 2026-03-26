@@ -6,20 +6,20 @@
 <div class="max-w-2xl mx-auto">
     <!-- Breadcrumb -->
     <nav class="mb-6">
-        <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-            <li><a href="/admin/" class="hover:text-gray-700 dark:hover:text-gray-200">Tenants</a></li>
+        <ol class="flex items-center space-x-2 text-sm text-white/60">
+            <li><a href="/admin/" class="hover:text-white">Tenants</a></li>
             <li><span class="mx-1">/</span></li>
-            <li><a href="/admin/tenants/{{ tenant.id }}" class="hover:text-gray-700 dark:hover:text-gray-200">{{ tenant.name }}</a></li>
+            <li><a href="/admin/tenants/{{ tenant.id }}" class="hover:text-white">{{ tenant.name }}</a></li>
             <li><span class="mx-1">/</span></li>
-            <li class="text-gray-900 dark:text-white">Add User</li>
+            <li class="text-white">Add User</li>
         </ol>
     </nav>
 
-    <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-        <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-800">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Add User</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Grant a user access to <span class="font-medium text-gray-700 dark:text-gray-300">{{ tenant.name }}</span> via MCP.
+    <div class="bg-brand-surface rounded-xl border border-white/10 shadow-sm">
+        <div class="px-6 py-5 border-b border-white/10">
+            <h2 class="text-lg font-heading font-medium text-white">Add User</h2>
+            <p class="mt-1 text-sm text-white/60">
+                Grant a user access to <span class="font-medium text-white/80">{{ tenant.name }}</span> via MCP.
             </p>
         </div>
 
@@ -28,44 +28,44 @@
 
             <!-- Email -->
             <div>
-                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                <label for="email" class="block text-sm font-medium text-white/80">Email</label>
                 <input type="email" name="email" id="email"
                        value="{{ (form_data.email if form_data else '') }}"
                        placeholder="user@example.com"
-                       class="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional. For display purposes only.</p>
+                       class="mt-1 block w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2.5 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-1 focus:ring-brand-accent placeholder-white/30">
+                <p class="mt-1 text-xs text-white/40">Optional. For display purposes only.</p>
             </div>
 
             <!-- Zitadel Subject ID -->
             <div>
-                <label for="zitadel_sub" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Zitadel Subject ID</label>
+                <label for="zitadel_sub" class="block text-sm font-medium text-white/80">Zitadel Subject ID</label>
                 <input type="text" name="zitadel_sub" id="zitadel_sub" required
                        value="{{ (form_data.zitadel_sub if form_data else '') }}"
                        placeholder="123456789012345678"
-                       class="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono">
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">The user's unique identifier in Zitadel (found in Zitadel Console under Users).</p>
+                       class="mt-1 block w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2.5 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-1 focus:ring-brand-accent font-mono placeholder-white/30">
+                <p class="mt-1 text-xs text-white/40">The user's unique identifier in Zitadel (found in Zitadel Console under Users).</p>
             </div>
 
             <!-- Info box -->
-            <div class="rounded-lg bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 p-4">
+            <div class="rounded-lg bg-brand-accent/10 border border-brand-accent/20 p-4">
                 <div class="flex">
-                    <svg class="h-5 w-5 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="h-5 w-5 text-brand-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
-                    <p class="ml-3 text-sm text-indigo-700 dark:text-indigo-300">
+                    <p class="ml-3 text-sm text-brand-accent">
                         After adding this user, they will set up their own Odoo API key via the self-service setup page.
                     </p>
                 </div>
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800">
+            <div class="flex items-center justify-between pt-4 border-t border-white/10">
                 <a href="/admin/tenants/{{ tenant.id }}"
-                   class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                   class="text-sm text-white/60 hover:text-white">
                     Cancel
                 </a>
                 <button type="submit"
-                        class="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors">
+                        class="inline-flex items-center rounded-lg bg-brand-accent px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent-hover transition-colors">
                     Add User
                 </button>
             </div>

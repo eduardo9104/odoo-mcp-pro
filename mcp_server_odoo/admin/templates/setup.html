@@ -1,39 +1,80 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Setup - Odoo MCP</title>
+    <title>Setup - Odoo MCP by Pantalytics</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'Lexend';
+            src: url('https://brand.pantalytics.com/fonts/Lexend-Medium.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Medium.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
     <script>
-        tailwind.config = { darkMode: 'class' }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#001d21',
+                            surface: '#002328',
+                            accent: '#9b99ff',
+                            'accent-hover': '#7370ff',
+                        },
+                    },
+                    fontFamily: {
+                        heading: ['Lexend', 'sans-serif'],
+                        body: ['Instrument Sans', 'sans-serif'],
+                    },
+                },
+            },
         }
     </script>
 </head>
-<body class="h-full bg-gray-50 dark:bg-gray-950">
+<body class="h-full bg-brand-bg font-body">
     <div class="min-h-full flex flex-col">
         <!-- Top bar -->
-        <div class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+        <div class="bg-brand-surface border-b border-white/10">
             <div class="max-w-2xl mx-auto flex items-center justify-between h-16 px-6">
                 <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
-                        </svg>
-                    </div>
-                    <span class="text-lg font-semibold text-gray-900 dark:text-white">Odoo MCP</span>
+                    <img src="https://brand.pantalytics.com/images/logo/icon-blue.png" alt="Pantalytics" class="w-8 h-8">
+                    <span class="text-lg font-heading font-medium text-white">Pantalytics</span>
                 </div>
                 {% if user %}
                 <div class="flex items-center space-x-4">
                     <div class="text-right">
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ user.email }}</span>
+                        <span class="text-sm text-white/60">{{ user.email }}</span>
                         {% if user.is_admin %}
-                        <a href="/admin/" class="block text-xs text-indigo-500 hover:text-indigo-400">Admin panel</a>
+                        <a href="/admin/" class="block text-xs text-brand-accent hover:text-brand-accent-hover">Admin panel</a>
                         {% endif %}
                     </div>
-                    <a href="/admin/logout" class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <a href="/admin/logout" class="text-white/60 hover:text-white">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                         </svg>
@@ -48,13 +89,13 @@
             <div class="w-full max-w-2xl space-y-6">
 
                 <!-- Your Odoo Connection -->
-                <div class="bg-white dark:bg-gray-900 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800">
-                    <div class="px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Your Odoo Connection</h2>
+                <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
+                    <div class="px-6 py-4 flex items-center justify-between border-b border-white/10">
+                        <h2 class="text-base font-heading font-medium text-white">Your Odoo Connection</h2>
                         {% if connection %}
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Connected</span>
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-900 text-green-300">Connected</span>
                         {% else %}
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">Not configured</span>
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-900 text-amber-300">Not configured</span>
                         {% endif %}
                     </div>
 
@@ -62,37 +103,37 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            <label class="block text-xs font-medium text-white/60 mb-1">
                                 Odoo URL
                             </label>
                             <input type="url" name="odoo_url" required
                                    value="{{ connection.odoo_url if connection else '' }}"
                                    placeholder="https://mycompany.odoo.com"
-                                   class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                   class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent placeholder-white/30">
+                            <p class="mt-1 text-xs text-white/40">
                                 Your Odoo instance URL (e.g. https://mycompany.odoo.com)
                             </p>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                            <label class="block text-xs font-medium text-white/60 mb-1">
                                 API Key
                             </label>
                             <input type="password" name="odoo_api_key" required
                                    {% if connection %}placeholder="(saved -- enter new key to update)"{% else %}placeholder="Paste your Odoo API key"{% endif %}
-                                   class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono">
-                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                   class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent font-mono placeholder-white/30">
+                            <p class="mt-1 text-xs text-white/40">
                                 Create in Odoo: Profile picture &rarr; My Preferences &rarr; Account Security &rarr; New API Key
                             </p>
                         </div>
 
                         <div class="flex items-center space-x-3">
                             <button type="submit"
-                                    class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors">
+                                    class="rounded-lg bg-brand-accent px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent-hover transition-colors">
                                 {% if connection %}Update{% else %}Save{% endif %}
                             </button>
                             {% if connection %}
-                            <span class="text-xs text-gray-400 dark:text-gray-500">
+                            <span class="text-xs text-white/40">
                                 Last updated: {{ connection.updated_at.strftime('%Y-%m-%d %H:%M') if connection.updated_at else 'unknown' }}
                             </span>
                             {% endif %}
@@ -100,12 +141,12 @@
                     </form>
 
                     {% if connection %}
-                    <div class="px-6 py-3 border-t border-gray-200 dark:border-gray-800">
+                    <div class="px-6 py-3 border-t border-white/10">
                         <form method="post" action="/admin/setup/delete" class="inline">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit"
                                     onclick="return confirm('Are you sure you want to remove your Odoo connection?')"
-                                    class="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
+                                    class="text-xs text-red-400 hover:text-red-300">
                                 Remove connection
                             </button>
                         </form>
@@ -115,38 +156,38 @@
 
                 <!-- Connect with Claude -->
                 {% if connection %}
-                <div class="bg-white dark:bg-gray-900 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800">
-                    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
-                        <h2 class="text-base font-semibold text-gray-900 dark:text-white">Connect with Claude</h2>
+                <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
+                    <div class="px-6 py-4 border-b border-white/10">
+                        <h2 class="text-base font-heading font-medium text-white">Connect with Claude</h2>
                     </div>
                     <div class="px-6 py-5 space-y-4">
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                        <p class="text-sm text-white/60">
                             Add a custom connector in Claude.ai:
                         </p>
                         <ol class="space-y-3 text-sm">
                             <li class="flex items-start">
-                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">1</span>
-                                <span class="text-gray-700 dark:text-gray-300">Go to <strong>claude.ai</strong> and click the <strong>MCP connectors</strong> icon in the chat bar</span>
+                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white/5 text-white/60 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">1</span>
+                                <span class="text-white/80">Go to <strong class="text-white">claude.ai</strong> and click the <strong class="text-white">MCP connectors</strong> icon in the chat bar</span>
                             </li>
                             <li class="flex items-start">
-                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">2</span>
-                                <span class="text-gray-700 dark:text-gray-300">Click <strong>Add custom connector</strong></span>
+                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white/5 text-white/60 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">2</span>
+                                <span class="text-white/80">Click <strong class="text-white">Add custom connector</strong></span>
                             </li>
                             <li class="flex items-start">
-                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">3</span>
-                                <div class="text-gray-700 dark:text-gray-300">
+                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white/5 text-white/60 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">3</span>
+                                <div class="text-white/80">
                                     Fill in:
                                     <div class="mt-2 space-y-2">
                                         <div class="flex items-center">
-                                            <span class="text-xs text-gray-500 dark:text-gray-400 w-20 flex-shrink-0">Name:</span>
-                                            <code class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs">Odoo</code>
+                                            <span class="text-xs text-white/40 w-20 flex-shrink-0">Name:</span>
+                                            <code class="bg-white/5 px-2 py-1 rounded text-xs text-white">Odoo</code>
                                         </div>
                                         <div class="flex items-center">
-                                            <span class="text-xs text-gray-500 dark:text-gray-400 w-20 flex-shrink-0">URL:</span>
+                                            <span class="text-xs text-white/40 w-20 flex-shrink-0">URL:</span>
                                             <div class="relative flex-1">
-                                                <code id="mcp-url" class="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs block">{{ mcp_server_url }}</code>
+                                                <code id="mcp-url" class="bg-white/5 px-2 py-1 rounded text-xs block text-white">{{ mcp_server_url }}</code>
                                                 <button onclick="navigator.clipboard.writeText(document.getElementById('mcp-url').textContent.trim())"
-                                                        class="absolute top-0 right-0 p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                                        class="absolute top-0 right-0 p-1 rounded text-white/40 hover:text-white"
                                                         title="Copy">
                                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -158,11 +199,11 @@
                                 </div>
                             </li>
                             <li class="flex items-start">
-                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">4</span>
-                                <span class="text-gray-700 dark:text-gray-300">Click <strong>Add</strong> and sign in when prompted</span>
+                                <span class="flex items-center justify-center w-6 h-6 rounded-full bg-white/5 text-white/60 text-xs font-bold mr-3 mt-0.5 flex-shrink-0">4</span>
+                                <span class="text-white/80">Click <strong class="text-white">Add</strong> and sign in when prompted</span>
                             </li>
                         </ol>
-                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-3">
+                        <p class="text-xs text-white/40 mt-3">
                             No Client ID needed -- it is auto-discovered via Dynamic Client Registration.
                         </p>
                     </div>
@@ -170,8 +211,8 @@
                 {% endif %}
 
                 <!-- Footer -->
-                <p class="text-center text-xs text-gray-400 dark:text-gray-600 pb-4">
-                    Odoo MCP Server
+                <p class="text-center text-xs text-white/30 pb-4">
+                    Odoo MCP by Pantalytics
                 </p>
             </div>
         </div>

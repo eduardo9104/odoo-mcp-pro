@@ -1,38 +1,79 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en" class="h-full dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In - Odoo MCP Admin</title>
+    <title>Sign In - Odoo MCP by Pantalytics</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'Lexend';
+            src: url('https://brand.pantalytics.com/fonts/Lexend-Medium.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Medium.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
     <script>
-        tailwind.config = { darkMode: 'class' }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.documentElement.classList.add('dark');
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#001d21',
+                            surface: '#002328',
+                            accent: '#9b99ff',
+                            'accent-hover': '#7370ff',
+                        },
+                    },
+                    fontFamily: {
+                        heading: ['Lexend', 'sans-serif'],
+                        body: ['Instrument Sans', 'sans-serif'],
+                    },
+                },
+            },
         }
     </script>
 </head>
-<body class="h-full bg-gray-50 dark:bg-gray-950">
+<body class="h-full bg-brand-bg font-body">
     <div class="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div class="sm:mx-auto sm:w-full sm:max-w-md">
             <!-- Logo -->
-            <div class="mx-auto w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center">
-                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
-                </svg>
-            </div>
-            <h2 class="mt-6 text-center text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                Odoo MCP Admin
+            <img src="https://brand.pantalytics.com/images/logo/logo-primary.png" alt="Pantalytics" class="mx-auto h-16">
+            <h2 class="mt-6 text-center text-2xl font-heading font-medium tracking-tight text-white">
+                Odoo MCP
             </h2>
-            <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                Sign in to manage Odoo databases and users
+            <p class="mt-2 text-center text-sm text-white/60">
+                Sign in to manage your Odoo connections.
             </p>
         </div>
 
         <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-            <div class="bg-white dark:bg-gray-900 py-8 px-6 shadow-sm rounded-xl border border-gray-200 dark:border-gray-800 sm:px-10">
+            <div class="bg-brand-surface py-8 px-6 shadow-sm rounded-xl border border-white/10 sm:px-10">
                 <a href="/admin/login/start"
-                   class="flex w-full justify-center items-center rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors">
+                   class="flex w-full justify-center items-center rounded-lg bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent transition-colors">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
                     </svg>
@@ -40,8 +81,8 @@
                 </a>
             </div>
 
-            <p class="mt-6 text-center text-xs text-gray-500 dark:text-gray-500">
-                Sign in to manage your Odoo connections.
+            <p class="mt-6 text-center text-xs text-white/40">
+                Odoo MCP by Pantalytics
             </p>
         </div>
     </div>
