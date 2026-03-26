@@ -243,10 +243,17 @@ class OdooMCPServer:
         # Required scopes that every token must have (enforced by MCP middleware)
         required_scopes = ["openid"]
 
-        # Use the MCP server root as the issuer URL for OASM discovery.
-        # Claude.ai constructs auth URLs relative to the MCP server root,
-        # and our custom OASM route proxies to Zitadel's actual endpoints.
-        oasm_issuer = resource_server_url or issuer_url
+        # Use the server root (without /mcp path) as issuer URL.
+        # The MCP SDK uses this in the auto-generated PRM's authorization_servers.
+        # Claude.ai discovers OASM at this URL, where we serve our custom metadata
+        # that proxies auth endpoints to Zitadel.
+        if resource_server_url:
+            from urllib.parse import urlparse as _urlparse
+
+            _parsed = _urlparse(resource_server_url)
+            oasm_issuer = f"{_parsed.scheme}://{_parsed.netloc}"
+        else:
+            oasm_issuer = issuer_url
         auth_settings = AuthSettings(
             issuer_url=oasm_issuer,
             resource_server_url=resource_server_url,
