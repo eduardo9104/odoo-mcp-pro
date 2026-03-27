@@ -178,11 +178,8 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         if session:
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-        register_url = f"{issuer}/ui/login/register"
         templates = request.app.state.templates
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "register_url": register_url}
-        )
+        return templates.TemplateResponse("login.html", {"request": request})
 
     @app.get("/login/start")
     async def admin_login_start(request: Request):
