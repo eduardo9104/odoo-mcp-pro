@@ -251,10 +251,11 @@
                             <div class="flex items-center space-x-2 mb-2">
                                 <span class="text-sm font-semibold text-white">ChatGPT</span>
                                 <span class="text-xs text-white/40">by OpenAI</span>
-                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Coming soon</span>
+                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Not yet tested</span>
                             </div>
                             <p class="text-sm text-white/60">
-                                ChatGPT supports MCP in Developer Mode. We are working on adding ChatGPT as a supported client.
+                                ChatGPT supports remote MCP servers with OAuth 2.1. This should work but we haven't verified it yet.
+                                See the <a href="https://platform.openai.com/docs/guides/tools-connectors-mcp" target="_blank" class="text-brand-accent hover:text-brand-accent-hover underline">OpenAI MCP documentation</a> for setup instructions.
                             </p>
                         </div>
 
@@ -265,10 +266,11 @@
                             <div class="flex items-center space-x-2 mb-2">
                                 <span class="text-sm font-semibold text-white">Gemini</span>
                                 <span class="text-xs text-white/40">by Google</span>
-                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Coming soon</span>
+                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Not yet tested</span>
                             </div>
                             <p class="text-sm text-white/60">
-                                Google supports MCP via the Agent Development Kit and Gemini CLI. We are working on adding Gemini as a supported client.
+                                Gemini CLI supports remote MCP servers with OAuth. This should work but we haven't verified it yet.
+                                See the <a href="https://geminicli.com/docs/tools/mcp-server/" target="_blank" class="text-brand-accent hover:text-brand-accent-hover underline">Gemini CLI MCP documentation</a> for setup instructions.
                             </p>
                         </div>
 
@@ -278,10 +280,11 @@
                         <div>
                             <div class="flex items-center space-x-2 mb-2">
                                 <span class="text-sm font-semibold text-white">Microsoft Copilot</span>
-                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Coming soon</span>
+                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Not yet tested</span>
                             </div>
                             <p class="text-sm text-white/60">
-                                Copilot Studio supports MCP connectors. We are working on adding Microsoft Copilot as a supported client.
+                                Copilot Studio supports remote MCP servers with OAuth 2.0 and Dynamic Client Registration. This should work but we haven't verified it yet.
+                                See the <a href="https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent" target="_blank" class="text-brand-accent hover:text-brand-accent-hover underline">Copilot Studio MCP documentation</a> for setup instructions.
                             </p>
                         </div>
 
@@ -292,16 +295,30 @@
                             <div class="flex items-center space-x-2 mb-2">
                                 <span class="text-sm font-semibold text-white">Le Chat</span>
                                 <span class="text-xs text-white/40">by Mistral AI</span>
-                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Coming soon</span>
+                                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-900/60 text-amber-300 uppercase">Not yet tested</span>
                             </div>
                             <p class="text-sm text-white/60">
-                                Mistral supports MCP via the Agents SDK. We are working on adding Le Chat as a supported client.
+                                Le Chat supports remote MCP servers with OAuth 2.1 and Dynamic Client Registration. This should work but we haven't verified it yet.
+                                See the <a href="https://help.mistral.ai/en/articles/393572-configuring-a-custom-connector" target="_blank" class="text-brand-accent hover:text-brand-accent-hover underline">Le Chat MCP documentation</a> for setup instructions.
                             </p>
                         </div>
 
                     </div>
                 </div>
                 {% endif %}
+
+                <!-- Need help? -->
+                <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
+                    <div class="px-6 py-4 border-b border-white/10">
+                        <h2 class="text-base font-heading font-medium text-white">Need help?</h2>
+                    </div>
+                    <div class="px-6 py-4">
+                        <p class="text-sm text-white/60">
+                            Having trouble connecting your AI client to Odoo, or running into issues? We're happy to help you get set up.
+                            Reach out to <a href="mailto:rutger@pantalytics.com" class="text-brand-accent hover:text-brand-accent-hover underline">rutger@pantalytics.com</a>.
+                        </p>
+                    </div>
+                </div>
 
                 <!-- Security Info -->
                 <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
