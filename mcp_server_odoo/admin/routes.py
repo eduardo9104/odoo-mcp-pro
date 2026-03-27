@@ -41,21 +41,10 @@ def register_admin_routes(app, db_manager):
     @app.get("/")
     @require_admin
     async def admin_dashboard(request: Request):
-        """Dashboard: list all tenants with user counts."""
+        """Dashboard: list all user connections."""
         tenants = await db_manager.list_tenants(active_only=False)
 
-        # Get user counts per tenant
-        tenant_stats = []
-        for tenant in tenants:
-            users = await db_manager.list_users_for_tenant(tenant.id)
-            active_users = sum(1 for u in users if u.is_active)
-            tenant_stats.append(
-                {
-                    "tenant": tenant,
-                    "user_count": len(users),
-                    "active_user_count": active_users,
-                }
-            )
+        tenant_stats = [{"tenant": t, "user_count": 0, "active_user_count": 0} for t in tenants]
 
         templates = request.app.state.templates
         return templates.TemplateResponse(
@@ -166,7 +155,7 @@ def register_admin_routes(app, db_manager):
         if not tenant:
             return RedirectResponse(url="/admin/", status_code=302)
 
-        users = await db_manager.list_users_for_tenant(tenant_id)
+        users = []  # Tenant-based user listing removed in simplified architecture
 
         templates = request.app.state.templates
         return templates.TemplateResponse(
@@ -380,7 +369,7 @@ def register_admin_routes(app, db_manager):
             return RedirectResponse(url=f"/admin/tenants/{tenant_id}", status_code=302)
 
         # Get current user connection to find current status
-        users = await db_manager.list_users_for_tenant(tenant_id)
+        users = []  # Tenant-based user listing removed
         user = next((u for u in users if u.id == user_id), None)
         if not user:
             return RedirectResponse(url=f"/admin/tenants/{tenant_id}", status_code=302)
@@ -395,7 +384,7 @@ def register_admin_routes(app, db_manager):
         # If htmx request, return the updated toggle button
         if request.headers.get("HX-Request"):
             # Re-fetch to get current state
-            users = await db_manager.list_users_for_tenant(tenant_id)
+            users = []  # Tenant-based user listing removed
             user = next((u for u in users if u.id == user_id), None)
             if user:
                 csrf = generate_csrf_token(request.state.admin)

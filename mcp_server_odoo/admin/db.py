@@ -396,6 +396,15 @@ class DatabaseManager:
             logger.info(f"Upserted user connection: {zitadel_sub} -> {odoo_url}")
             return uc
 
+    async def list_all_connections(self) -> list:
+        """List all user connections (for admin dashboard)."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM user_connections ORDER BY created_at DESC")
+            connections = [UserConnection(**dict(row)) for row in rows]
+            for uc in connections:
+                uc.odoo_api_key = decrypt_api_key(uc.odoo_api_key)
+            return connections
+
     async def delete_user_connection(self, connection_id: int) -> bool:
         async with self._pool.acquire() as conn:
             result = await conn.execute("DELETE FROM user_connections WHERE id = $1", connection_id)
