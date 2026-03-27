@@ -176,8 +176,6 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         """Show login page or redirect if already logged in."""
         session = get_session(request)
         if session:
-            if session.get("is_admin"):
-                return RedirectResponse(url="/admin/", status_code=302)
             return RedirectResponse(url="/admin/setup", status_code=302)
 
         templates = request.app.state.templates
