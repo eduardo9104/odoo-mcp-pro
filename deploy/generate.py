@@ -113,7 +113,6 @@ def generate_compose(config: dict) -> str:
             "ODOO_URL": inst["odoo_url"],
             "ODOO_DB": inst.get("odoo_db", ""),
             "ODOO_API_KEY": inst["odoo_api_key"],
-            "ODOO_API_VERSION": inst.get("api_version", "json2"),
             "ODOO_MCP_TRANSPORT": "streamable-http",
             "ODOO_MCP_HOST": "0.0.0.0",
             "ODOO_MCP_PORT": "8000",

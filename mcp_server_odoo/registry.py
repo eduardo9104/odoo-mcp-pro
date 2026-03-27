@@ -12,8 +12,12 @@ from typing import Dict
 
 from .access_control import AccessController
 from .config import OdooConfig
+from .connection_protocol import OdooConnectionProtocol
 from .exceptions import OdooConnectionError
+from .odoo_connection import OdooConnection
 from .odoo_json2_connection import OdooJSON2Connection
+from .performance import PerformanceManager
+from .version_detect import detect_api_version
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ DEFAULT_TTL = 1800
 class CachedConnection:
     """A cached Odoo connection with metadata."""
 
-    connection: OdooJSON2Connection
+    connection: OdooConnectionProtocol
     access_controller: AccessController
     config: OdooConfig
     created_at: float = field(default_factory=time.time)
@@ -94,16 +98,29 @@ class ConnectionRegistry:
                 "Set up your connection first."
             )
 
-        # Create connection
+        # Auto-detect API version from Odoo server
+        api_version, server_version = detect_api_version(user_conn.odoo_url)
+        logger.info(
+            f"Auto-detected api_version={api_version} for {user_conn.odoo_url}"
+            f" (Odoo {server_version or 'unknown'})"
+        )
+
+        # Create connection with detected API version
         config = OdooConfig(
             url=user_conn.odoo_url,
             database="",
             api_key=user_conn.odoo_api_key,
-            api_version="json2",
+            api_version=api_version,
         )
 
         try:
-            conn = OdooJSON2Connection(config)
+            conn: OdooConnectionProtocol
+            if api_version == "json2":
+                conn = OdooJSON2Connection(config)
+            else:
+                conn = OdooConnection(
+                    config, performance_manager=PerformanceManager(config)
+                )
             conn.connect()
             conn.authenticate()
         except Exception as e:

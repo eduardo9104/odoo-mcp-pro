@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS tenants (
     zitadel_org_id  TEXT UNIQUE,
     odoo_url        TEXT NOT NULL,
     odoo_db         TEXT NOT NULL DEFAULT '',
-    api_version     TEXT NOT NULL DEFAULT 'json2',
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW()

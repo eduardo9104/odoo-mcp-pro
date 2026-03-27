@@ -20,10 +20,6 @@ try:
 except ImportError:
     MODEL_DISCOVERY_AVAILABLE = False
 
-# Detect configured API version
-ODOO_API_VERSION = os.getenv("ODOO_API_VERSION", "xmlrpc").strip().lower()
-
-
 def is_odoo_server_available(host: str = "localhost", port: int = 8069) -> bool:
     """Check if Odoo server is available at the given host and port."""
     try:
@@ -38,23 +34,13 @@ def is_odoo_server_available(host: str = "localhost", port: int = 8069) -> bool:
 
         base_url = f"http://{host}:{port}"
 
-        if ODOO_API_VERSION == "json2":
-            # Probe /web/version — available without auth on any Odoo 19 instance
-            try:
-                import httpx
-
-                response = httpx.get(f"{base_url}/web/version", timeout=3)
-                return response.status_code == 200
-            except Exception:
-                return False
-        else:
-            # Original XML-RPC probe
-            try:
-                proxy = xmlrpc.client.ServerProxy(f"{base_url}/xmlrpc/2/common")
-                proxy.version()
-                return True
-            except Exception:
-                return False
+        # XML-RPC version probe works on all Odoo versions
+        try:
+            proxy = xmlrpc.client.ServerProxy(f"{base_url}/xmlrpc/2/common")
+            proxy.version()
+            return True
+        except Exception:
+            return False
 
     except Exception:
         return False
@@ -108,21 +94,25 @@ def pytest_collection_modifyitems(config, items):
             if any(keyword in test_name for keyword in ["real_server", "integration"]):
                 item.add_marker(skip_odoo)
 
-    # Skip xmlrpc_only tests when running in json2 mode
-    if ODOO_API_VERSION == "json2":
-        skip_xmlrpc = pytest.mark.skip(
-            reason="Test requires XML-RPC/MCP module, skipping in json2 mode"
-        )
-        for item in items:
-            if "xmlrpc_only" in item.keywords:
-                item.add_marker(skip_xmlrpc)
+    # xmlrpc_only and json2_only markers: skip based on auto-detected API version
+    # at test collection time. Since we always auto-detect, these markers are
+    # only meaningful when a live Odoo server is available.
+    if ODOO_SERVER_AVAILABLE:
+        from mcp_server_odoo.version_detect import detect_api_version
 
-    # Skip json2_only tests when running in xmlrpc mode
-    if ODOO_API_VERSION != "json2":
-        skip_json2 = pytest.mark.skip(reason="Test requires JSON/2 API mode")
-        for item in items:
-            if "json2_only" in item.keywords:
-                item.add_marker(skip_json2)
+        detected, _ = detect_api_version(f"http://{_host}:{_port}")
+        if detected == "json2":
+            skip_xmlrpc = pytest.mark.skip(
+                reason="Test requires XML-RPC/MCP module, skipping for Odoo 19+ (json2)"
+            )
+            for item in items:
+                if "xmlrpc_only" in item.keywords:
+                    item.add_marker(skip_xmlrpc)
+        else:
+            skip_json2 = pytest.mark.skip(reason="Test requires JSON/2 API (Odoo 19+)")
+            for item in items:
+                if "json2_only" in item.keywords:
+                    item.add_marker(skip_json2)
 
 
 @pytest.fixture(autouse=True)
@@ -182,14 +172,19 @@ def test_config_with_server_check(odoo_server_required) -> OdooConfig:
     if not os.getenv("ODOO_API_KEY"):
         pytest.skip("ODOO_API_KEY environment variable not set. Please configure .env file.")
 
+    from mcp_server_odoo.version_detect import detect_api_version
+
+    odoo_url = os.getenv("ODOO_URL")
+    detected, _ = detect_api_version(odoo_url)
+
     return OdooConfig(
-        url=os.getenv("ODOO_URL"),
+        url=odoo_url,
         api_key=os.getenv("ODOO_API_KEY"),
         database=os.getenv("ODOO_DB"),  # DB can be auto-detected
         log_level=os.getenv("ODOO_MCP_LOG_LEVEL", "INFO"),
         default_limit=int(os.getenv("ODOO_MCP_DEFAULT_LIMIT", "10")),
         max_limit=int(os.getenv("ODOO_MCP_MAX_LIMIT", "100")),
-        api_version=ODOO_API_VERSION,
+        api_version=detected,
     )
 
 

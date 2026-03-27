@@ -1,0 +1,216 @@
+"""Tests for the Odoo API version auto-detection module."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from mcp_server_odoo.version_detect import JSON2_MIN_VERSION, detect_api_version
+
+
+class TestDetectApiVersion:
+    """Test detect_api_version function."""
+
+    def test_detects_json2_for_odoo_19(self):
+        """Odoo 19+ should return json2."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "19.0",
+            "server_version_info": [19, 0, 0, "final", 0],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "json2"
+        assert server_version == "19.0"
+
+    def test_detects_xmlrpc_for_odoo_17(self):
+        """Odoo 17 should return xmlrpc."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "17.0",
+            "server_version_info": [17, 0, 0, "final", 0],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "xmlrpc"
+        assert server_version == "17.0"
+
+    def test_detects_xmlrpc_for_odoo_14(self):
+        """Odoo 14 should return xmlrpc."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "14.0",
+            "server_version_info": [14, 0, 0, "final", 0],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "xmlrpc"
+        assert server_version == "14.0"
+
+    def test_detects_json2_for_odoo_20(self):
+        """Future Odoo 20+ should also return json2."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "20.0",
+            "server_version_info": [20, 0, 0, "final", 0],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "json2"
+        assert server_version == "20.0"
+
+    def test_fallback_to_server_version_string(self):
+        """Should parse version from server_version string when server_version_info is missing."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "19.0",
+            "server_version_info": [],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "json2"
+        assert server_version == "19.0"
+
+    def test_fallback_xmlrpc_on_connection_error(self):
+        """Should fall back to xmlrpc when connection fails."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.side_effect = ConnectionRefusedError("refused")
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://unreachable.example.com")
+
+        assert api_version == "xmlrpc"
+        assert server_version is None
+
+    def test_fallback_xmlrpc_on_timeout(self):
+        """Should fall back to xmlrpc on timeout."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.side_effect = TimeoutError("timeout")
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://slow.example.com")
+
+        assert api_version == "xmlrpc"
+        assert server_version is None
+
+    def test_fallback_xmlrpc_on_empty_version(self):
+        """Should fall back to xmlrpc when version info is empty."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {}
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "xmlrpc"
+        assert server_version is None
+
+    def test_url_trailing_slash_stripped(self):
+        """Should strip trailing slash from URL."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "19.0",
+            "server_version_info": [19, 0, 0, "final", 0],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy) as mock_cls:
+            detect_api_version("https://mycompany.odoo.com/")
+
+        mock_cls.assert_called_once_with(
+            "https://mycompany.odoo.com/xmlrpc/2/common",
+            allow_none=True,
+        )
+
+    def test_json2_min_version_constant(self):
+        """JSON2_MIN_VERSION should be 19."""
+        assert JSON2_MIN_VERSION == 19
+
+    def test_detects_json2_at_boundary(self):
+        """Exactly version 19 should return json2."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "19.0",
+            "server_version_info": [19, 0, 0, "alpha", 1],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, _ = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "json2"
+
+    def test_detects_xmlrpc_at_boundary(self):
+        """Version 18 should return xmlrpc."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "18.0",
+            "server_version_info": [18, 0, 0, "final", 0],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, _ = detect_api_version("https://mycompany.odoo.com")
+
+        assert api_version == "xmlrpc"
+
+
+class TestConfigAutoApiVersion:
+    """Test OdooConfig always defaults to auto-detection."""
+
+    def test_auto_is_default(self):
+        """api_version should default to 'auto'."""
+        from mcp_server_odoo.config import OdooConfig
+
+        config = OdooConfig(url="https://odoo.example.com", api_key="test-key")
+        assert config.api_version == "auto"
+
+    def test_accepts_api_key(self):
+        """Config should accept api_key auth."""
+        from mcp_server_odoo.config import OdooConfig
+
+        config = OdooConfig(url="https://odoo.example.com", api_key="test-key")
+        assert config.uses_api_key
+
+    def test_accepts_credentials(self):
+        """Config should accept username/password auth."""
+        from mcp_server_odoo.config import OdooConfig
+
+        config = OdooConfig(
+            url="https://odoo.example.com",
+            username="user",
+            password="pass",
+        )
+        assert config.uses_credentials
+
+    def test_rejects_no_auth(self):
+        """Config should reject missing auth."""
+        from mcp_server_odoo.config import OdooConfig
+
+        with pytest.raises(ValueError, match="Authentication required"):
+            OdooConfig(url="https://odoo.example.com")
+
+    def test_no_odoo_api_version_env_var(self):
+        """ODOO_API_VERSION env var should not affect config."""
+        import os
+
+        from mcp_server_odoo.config import OdooConfig, load_config, reset_config
+
+        reset_config()
+        # Even if the env var is set, load_config ignores it
+        os.environ["ODOO_URL"] = "https://odoo.example.com"
+        os.environ["ODOO_API_KEY"] = "test-key"
+        os.environ["ODOO_API_VERSION"] = "json2"  # should be ignored
+        try:
+            config = load_config()
+            assert config.api_version == "auto"
+        finally:
+            os.environ.pop("ODOO_API_VERSION", None)
+            os.environ.pop("ODOO_URL", None)
+            os.environ.pop("ODOO_API_KEY", None)
+            reset_config()

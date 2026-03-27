@@ -36,8 +36,8 @@ class OdooConfig:
     host: str = "localhost"
     port: int = 8000
 
-    # API version: "xmlrpc" (Odoo 14-19) or "json2" (Odoo 19+ only)
-    api_version: Literal["xmlrpc", "json2"] = "xmlrpc"
+    # API version: set by auto-detection after connecting (json2 for Odoo 19+, xmlrpc for 14-18)
+    api_version: Literal["auto", "xmlrpc", "json2"] = "auto"
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -53,16 +53,11 @@ class OdooConfig:
         has_api_key = bool(self.api_key)
         has_credentials = bool(self.username and self.password)
 
-        if self.api_version == "json2":
-            # JSON/2 only needs an API key (Bearer token auth)
-            if not has_api_key:
-                raise ValueError("JSON/2 API requires ODOO_API_KEY for Bearer token authentication")
-        else:
-            if not has_api_key and not has_credentials:
-                raise ValueError(
-                    "Authentication required: provide either ODOO_API_KEY or "
-                    "both ODOO_USER and ODOO_PASSWORD"
-                )
+        if not has_api_key and not has_credentials:
+            raise ValueError(
+                "Authentication required: provide either ODOO_API_KEY or "
+                "both ODOO_USER and ODOO_PASSWORD"
+            )
 
         # Validate numeric fields
         if self.default_limit <= 0:
@@ -94,13 +89,6 @@ class OdooConfig:
         if self.port <= 0 or self.port > 65535:
             raise ValueError("Port must be between 1 and 65535")
 
-        # Validate API version
-        valid_api_versions = {"xmlrpc", "json2"}
-        if self.api_version not in valid_api_versions:
-            raise ValueError(
-                f"Invalid API version: {self.api_version}. "
-                f"Must be one of: {', '.join(valid_api_versions)}"
-            )
 
     @property
     def uses_api_key(self) -> bool:
@@ -210,7 +198,6 @@ def load_config(env_file: Optional[Path] = None) -> OdooConfig:
         transport=os.getenv("ODOO_MCP_TRANSPORT", "stdio").strip(),
         host=os.getenv("ODOO_MCP_HOST", "localhost").strip(),
         port=get_int_env("ODOO_MCP_PORT", 8000),
-        api_version=os.getenv("ODOO_API_VERSION", "xmlrpc").strip().lower(),
     )
 
     return config
