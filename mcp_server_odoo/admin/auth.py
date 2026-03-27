@@ -208,7 +208,7 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             "response_type": "code",
             "client_id": client_id,
             "redirect_uri": redirect_uri,
-            "scope": "openid profile email",
+            "scope": f"openid profile email urn:zitadel:iam:org:id:{os.getenv('ZITADEL_ORG_ID', '365820790714792363')}",
             "state": state,
             "code_challenge": code_challenge_b64,
             "code_challenge_method": "S256",

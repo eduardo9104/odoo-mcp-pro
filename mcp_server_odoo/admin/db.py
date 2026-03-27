@@ -1,16 +1,15 @@
 """PostgreSQL database manager for admin panel.
 
-Manages tenant (Odoo instance) configurations and user-connection mappings.
+Manages user connections and admin users.
 Uses asyncpg for async PostgreSQL access.
 
 Terminology:
-- Tenant: an Odoo instance linked to a Zitadel organization
-- UserConnection: a user's API key for a specific tenant
+- UserConnection: a user's Odoo API key (self-service, one per user)
+- Admin: a Zitadel subject with admin privileges
 """
 
 import logging
 import os
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
@@ -115,20 +114,6 @@ INSERT INTO schema_version (version) VALUES (2);
 
 
 @dataclass
-class Tenant:
-    id: int
-    name: str
-    slug: str
-    zitadel_org_id: Optional[str]
-    odoo_url: str
-    odoo_db: str
-    api_version: str
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-
-@dataclass
 class UserConnection:
     id: int
     zitadel_sub: str
@@ -224,133 +209,7 @@ class DatabaseManager:
         if bootstrap_sub:
             await self.ensure_admin(bootstrap_sub, bootstrap_email or None)
 
-    # --- Tenants ---
-
-    async def list_tenants(self, active_only: bool = True) -> List[Tenant]:
-        async with self._pool.acquire() as conn:
-            query = "SELECT * FROM tenants"
-            if active_only:
-                query += " WHERE is_active = TRUE"
-            query += " ORDER BY name"
-            rows = await conn.fetch(query)
-            return [Tenant(**dict(r)) for r in rows]
-
-    async def get_tenant(self, tenant_id: int) -> Optional[Tenant]:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM tenants WHERE id = $1", tenant_id)
-            return Tenant(**dict(row)) if row else None
-
-    async def get_tenant_by_slug(self, slug: str) -> Optional[Tenant]:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM tenants WHERE slug = $1", slug)
-            return Tenant(**dict(row)) if row else None
-
-    async def get_tenant_by_org_id(self, org_id: str) -> Optional[Tenant]:
-        """Find a tenant by its Zitadel organization ID."""
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM tenants WHERE zitadel_org_id = $1", org_id)
-            return Tenant(**dict(row)) if row else None
-
-    async def create_tenant(
-        self,
-        name: str,
-        slug: str,
-        odoo_url: str,
-        odoo_db: str = "",
-        api_version: str = "json2",
-        zitadel_org_id: Optional[str] = None,
-    ) -> Tenant:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """INSERT INTO tenants (name, slug, odoo_url, odoo_db, api_version, zitadel_org_id)
-                   VALUES ($1, $2, $3, $4, $5, $6) RETURNING *""",
-                name,
-                slug,
-                odoo_url,
-                odoo_db,
-                api_version,
-                zitadel_org_id,
-            )
-            tenant = Tenant(**dict(row))
-            logger.info(f"Created tenant: {name} ({odoo_url})")
-            return tenant
-
-    async def update_tenant(self, tenant_id: int, **kwargs) -> Optional[Tenant]:
-        allowed = {
-            "name",
-            "slug",
-            "odoo_url",
-            "odoo_db",
-            "api_version",
-            "is_active",
-            "zitadel_org_id",
-        }
-        updates = {k: v for k, v in kwargs.items() if k in allowed}
-        if not updates:
-            return await self.get_tenant(tenant_id)
-
-        sets = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(updates))
-        sets += ", updated_at = NOW()"
-        values = [tenant_id] + list(updates.values())
-
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                f"UPDATE tenants SET {sets} WHERE id = $1 RETURNING *", *values
-            )
-            return Tenant(**dict(row)) if row else None
-
-    async def get_tenant_by_url(self, odoo_url: str) -> Optional[Tenant]:
-        """Find a tenant by its Odoo URL."""
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM tenants WHERE odoo_url = $1", odoo_url)
-            return Tenant(**dict(row)) if row else None
-
-    async def get_or_create_tenant_by_url(
-        self, odoo_url: str, odoo_db: str = "", api_version: str = "json2"
-    ) -> Tenant:
-        """Find existing tenant by URL or create a new one.
-
-        Auto-generates name and slug from the hostname.
-        """
-        existing = await self.get_tenant_by_url(odoo_url)
-        if existing:
-            return existing
-
-        # Generate name and slug from hostname
-        from urllib.parse import urlparse
-
-        parsed = urlparse(odoo_url)
-        hostname = parsed.hostname or "odoo"
-        # Use first part of hostname as name (e.g. "mycompany" from "mycompany.odoo.com")
-        name = hostname.split(".")[0]
-        slug = re.sub(r"[^\w-]", "", name.lower())
-
-        # Ensure uniqueness by appending a number if needed
-        base_name = name
-        base_slug = slug
-        counter = 1
-        while True:
-            try:
-                return await self.create_tenant(
-                    name=name,
-                    slug=slug,
-                    odoo_url=odoo_url,
-                    odoo_db=odoo_db,
-                    api_version=api_version,
-                )
-            except Exception:
-                counter += 1
-                name = f"{base_name}-{counter}"
-                slug = f"{base_slug}-{counter}"
-                if counter > 100:
-                    raise
-
-    async def delete_tenant(self, tenant_id: int) -> bool:
-        async with self._pool.acquire() as conn:
-            result = await conn.execute("DELETE FROM tenants WHERE id = $1", tenant_id)
-            return result == "DELETE 1"
-
-    # --- User Connections (v3: self-service, one per user) ---
+    # --- User Connections (self-service, one per user) ---
 
     async def get_user_connection_by_sub(self, zitadel_sub: str) -> Optional[UserConnection]:
         """Get a user's Odoo connection by their Zitadel subject ID."""
