@@ -70,9 +70,6 @@
                 <div class="flex items-center space-x-4">
                     <div class="text-right">
                         <span class="text-sm text-white/60">{{ user.email }}</span>
-                        {% if user.is_admin %}
-                        <a href="/admin/" class="block text-xs text-brand-accent hover:text-brand-accent-hover">Admin panel</a>
-                        {% endif %}
                     </div>
                     <a href="/admin/logout" class="text-white/60 hover:text-white">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
