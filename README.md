@@ -7,26 +7,28 @@
 <h1 align="center">odoo-mcp-pro</h1>
 
 <p align="center">
-  Managed MCP server connecting Claude AI to Odoo ERP.<br/>
-  Search, create, update, and manage records using natural language.
+  Talk to your Odoo ERP using natural language.<br/>
+  Search, create, update, and manage records -- just ask.
 </p>
 
 <p align="center">
   <a href="https://github.com/pantalytics/odoo-mcp-pro/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MPL%202.0-blue.svg" alt="License: MPL 2.0"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"/></a>
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-green.svg" alt="MCP Compatible"/></a>
-  <a href="https://www.odoo.com/documentation/19.0/developer/reference/external_api.html"><img src="https://img.shields.io/badge/Odoo-19%2B%20JSON%2F2-714b67.svg" alt="Odoo 19+ JSON/2"/></a>
+  <a href="https://www.odoo.com/documentation/19.0/developer/reference/external_api.html"><img src="https://img.shields.io/badge/Odoo-14--19+-714b67.svg" alt="Odoo 14-19+"/></a>
   <a href="https://oauth.net/2.1/"><img src="https://img.shields.io/badge/OAuth-2.1-orange.svg" alt="OAuth 2.1"/></a>
   <img src="https://img.shields.io/badge/Status-Free%20Beta-brightgreen.svg" alt="Free Beta"/>
 </p>
 
-> **Free Beta** -- The hosted version of odoo-mcp-pro is currently available for free during the beta period. Paid plans will be introduced once the service reaches general availability. Self-hosted (local mode) will always remain free.
+> **Free Beta** -- odoo-mcp-pro is currently free during the beta period. [Sign up at pantalytics.com/odoo-mcp-pro](https://pantalytics.com/odoo-mcp-pro)
 
 ---
 
-## What it is
+## The idea
 
-odoo-mcp-pro is a B2B SaaS MCP server that connects Claude AI to your Odoo ERP. It runs as a managed service: one server handles multiple customers, each with their own Odoo instance, users, and permissions.
+Odoo is powerful. AI is powerful. Together they're better.
+
+odoo-mcp-pro connects Claude AI to your Odoo ERP, so you can use natural language as an interface to your business data. Not to replace Odoo's UI -- but to give you a second interface that's faster for many tasks.
 
 > **"Show me all unpaid invoices over 5,000 EUR from Q4"** -- Claude queries your Odoo instance directly and returns the results.
 
@@ -34,90 +36,40 @@ odoo-mcp-pro is a B2B SaaS MCP server that connects Claude AI to your Odoo ERP. 
   <img src="docs/demo.gif" alt="Demo of odoo-mcp-pro" width="800"/>
 </p>
 
-## How it works
-
-```
-                                 +--------------+
-  +-----------+     OAuth 2.1    | MCP Server   |    JSON/2     +--------+
-  | Claude.ai |---------------->| (Hetzner)    |-------------->| Odoo   |
-  | (browser) |                 |              |               | (cust) |
-  +-----------+                 +------+-------+               +--------+
-                                       |
-                                +------+-------+
-                                |  Postgres    |
-                                |  tenants +   |
-                                |  api_keys    |
-                                +------+-------+
-                                       |
-                                +------+-------+
-                                |  Zitadel     |
-                                |  Cloud       |
-                                |  (identity)  |
-                                +--------------+
-```
-
-- **Zitadel Cloud** handles identity, organizations, and login (OAuth 2.1 + PKCE)
-- **Postgres** stores tenant config (which org maps to which Odoo) and user API keys
-- **The MCP server** routes each authenticated user to the right Odoo instance using their own API key
-- **Odoo** enforces permissions server-side -- the MCP server is a stateless proxy
-
-## For users
-
-Your admin gives you a setup link. Then:
-
-1. Open the link and log in with your company account
-2. Enter your Odoo API key (see [how to generate one](SETUP.md#generating-an-odoo-api-key))
-3. Add the MCP server to Claude.ai: **Settings > Integrations > Add MCP Server**, then click **Advanced** and enter the **Client ID** provided by your admin
-4. Ask Claude anything about your Odoo data
-
-## For admins (Pantalytics)
-
-To onboard a new customer:
-
-1. Create a Zitadel organization for the customer
-2. Create a tenant in the admin panel: name, Odoo URL, Zitadel org ID
-3. Share the setup link with the customer's users
-4. Users self-service: log in, enter their Odoo API key, connect Claude
-
-See [SETUP.md](SETUP.md) for the full deployment and onboarding guide.
-
-## Self-hosted (local mode)
-
-For personal use, run locally without Postgres or Zitadel:
-
-```bash
-claude mcp add -s user \
-  -e ODOO_URL=https://your-odoo.com \
-  -e ODOO_DB=your_database \
-  -e ODOO_API_KEY=your_api_key \
-  -e ODOO_API_VERSION=json2 \
-  -- odoo python -m mcp_server_odoo
-```
-
-<details>
-<summary><b>Claude Desktop</b> -- add to claude_desktop_config.json</summary>
-
-```json
-{
-  "mcpServers": {
-    "odoo": {
-      "command": "python",
-      "args": ["-m", "mcp_server_odoo"],
-      "cwd": "/path/to/odoo-mcp-pro",
-      "env": {
-        "ODOO_URL": "https://your-odoo.com",
-        "ODOO_DB": "your_database",
-        "ODOO_API_KEY": "your_api_key",
-        "ODOO_API_VERSION": "json2"
-      }
-    }
-  }
-}
-```
-
-</details>
+**Use the interface that fits the task.** Complex configuration? Use the Odoo UI. Quick data lookup, bulk questions, or creating records on the fly? Just ask Claude.
 
 ## What you can do
+
+- *"Find all contacts in Amsterdam with open quotations"*
+- *"Create a lead for Acme Corp, expected revenue 50k EUR"*
+- *"Which sales orders from last month don't have a delivery yet?"*
+- *"What fields does the sale.order model have?"*
+- *"Update the expected closing date on opportunity #42 to next Friday"*
+
+Works with any Odoo model -- sales, invoices, contacts, inventory, CRM, HR, you name it.
+
+## Get started
+
+### Hosted (recommended)
+
+We run the server for you. No installation, no Docker, no infrastructure.
+
+1. **[Sign up at pantalytics.com/odoo-mcp-pro](https://pantalytics.com/odoo-mcp-pro)**
+2. Log in and enter your Odoo URL + API key ([how to generate one](SETUP.md#generating-an-odoo-api-key))
+3. Add the MCP server to Claude.ai: **Settings > Integrations > Add MCP Server**
+4. Start asking questions
+
+Your data stays in Odoo -- the server is a stateless proxy. API keys are encrypted at rest.
+
+### Self-hosted
+
+Deploy on your own infrastructure with Docker Compose, Postgres, Zitadel, and Caddy. Full control, same features.
+
+See [SETUP.md](SETUP.md) for the deployment guide.
+
+## How it works
+
+odoo-mcp-pro is an [MCP server](https://modelcontextprotocol.io) -- an open standard that lets AI assistants call external tools. It exposes 6 tools that Claude can call based on your questions:
 
 | Tool | What it does |
 |------|-------------|
@@ -128,24 +80,14 @@ claude mcp add -s user \
 | `update_record` | Update fields on an existing record |
 | `delete_record` | Delete a record |
 
-Plus 4 MCP resources for URI-based access to records, search results, field definitions, and record counts.
-
-**Example questions:**
-- *"Find all contacts in Amsterdam with open quotations"*
-- *"Create a lead for Acme Corp, expected revenue 50k EUR"*
-- *"Which sales orders from last month don't have a delivery yet?"*
-- *"What fields does the sale.order model have?"*
+**Supports Odoo 14-19+** -- uses the JSON/2 API for Odoo 19+ and XML-RPC for older versions. The right protocol is selected automatically.
 
 ## Security
 
-- **User data stays in Odoo.** The MCP server is a stateless proxy -- nothing is stored or cached beyond the session.
-- **API keys are encrypted at rest using AES-128 (Fernet).** Your Odoo API key is stored in a managed Postgres database with encryption. It is only used server-side to authenticate requests to your Odoo instance -- it is never exposed to Claude, sent to the browser, or logged.
-- **API keys stay server-side.** Users authenticate via OAuth tokens. The Odoo API key never leaves the server.
-- **Odoo enforces permissions.** Each user's API key determines what they can see and do. ACLs and record rules apply as normal.
-- **Per-user isolation.** Each user gets their own OAuth token and their own Odoo API key.
-- **You stay in control.** You can revoke your API key in Odoo at any time, instantly cutting off access. You can also remove your connection from the setup page.
-
-See [architecture.md](architecture.md) for the full security model.
+- **Odoo is the boss.** All data, permissions, and business logic live in Odoo. Each user's API key determines what they can see and do -- ACLs and record rules apply as normal.
+- **Stateless proxy.** The MCP server doesn't store or cache your business data.
+- **API keys encrypted at rest** using AES-128 (Fernet). Never exposed to Claude, the browser, or logs.
+- **You stay in control.** Revoke your API key in Odoo at any time to instantly cut off access.
 
 ## Development
 
@@ -153,11 +95,11 @@ See [architecture.md](architecture.md) for the full security model.
 uv venv --python 3.10
 source .venv/bin/activate
 uv pip install -e ".[dev]"
-pytest tests/ -q            # 437 tests, all mocked
+pytest tests/ -q
 ruff check . && ruff format .
 ```
 
-See [CLAUDE.md](CLAUDE.md) for architecture details and coding conventions.
+See [architecture.md](architecture.md) for technical details and [CLAUDE.md](CLAUDE.md) for coding conventions.
 
 ## Contributing
 
@@ -171,7 +113,7 @@ Contributions are welcome. Fork the repo, create a feature branch, run `pytest t
 
 **odoo-mcp-pro** is built and maintained by [Pantalytics](https://pantalytics.com), an Odoo implementation partner based in Utrecht, Netherlands.
 
-Originally forked from [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) by Andrey Ivanov (MPL-2.0). Since expanded with JSON/2 client, multi-tenant SaaS architecture, OAuth 2.1, admin panel, and comprehensive test suite.
+Originally forked from [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) by Andrey Ivanov (MPL-2.0).
 
 ---
 

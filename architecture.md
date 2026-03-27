@@ -1,15 +1,23 @@
 # Architecture
 
-Technical architecture of odoo-mcp-pro. For a quick overview, see the [README](README.md).
+Technical architecture of odoo-mcp-pro. For a product overview, see the [README](README.md).
+
+## Design principles
+
+1. **Odoo + AI, samen sterker.** Combine the power of Odoo as an ERP with the power of AI as an interface. Don't replace Odoo -- make it more accessible.
+2. **Use the interface that fits.** Some tasks are faster in the Odoo UI, others via a question to Claude. The user chooses.
+3. **Odoo is the boss.** All data, permissions, and business logic live in Odoo. The MCP server is a stateless proxy.
+4. **No setup barriers.** Self-service, auto-detection, minimal configuration. It should just work.
+5. **Open and transparent.** Open-source (MPL-2.0), no vendor lock-in, standard protocols (MCP, OAuth 2.1).
+
+---
 
 ## Overview
-
-odoo-mcp-pro is a multi-tenant MCP server that connects Claude AI to Odoo ERP instances. It supports two deployment modes: managed SaaS (multi-tenant with Postgres and Zitadel) and self-hosted (single-tenant, stdio).
 
 ```
 +-----------+     OAuth 2.1    +--------------+    JSON/2     +----------+
 | Claude.ai |---------------->| MCP Server   |-------------->| Odoo     |
-| (browser) |                 | (Hetzner)    |               | (cust A) |
+| (browser) |                 | (Docker)     |               | (cust A) |
 +-----------+                 +------+-------+               +----------+
                                      |
                               +------+-------+
@@ -31,11 +39,11 @@ odoo-mcp-pro is a multi-tenant MCP server that connects Claude AI to Odoo ERP in
 
 ### MCP Server
 
-Built on [FastMCP](https://github.com/modelcontextprotocol/python-sdk). Exposes 6 tools and 4 resources for Odoo data access. In multi-tenant mode, routes each authenticated user to the correct Odoo instance based on their Zitadel organization.
+Built on [FastMCP](https://github.com/modelcontextprotocol/python-sdk). Exposes 6 tools and 4 resources for Odoo data access. Routes each authenticated user to the correct Odoo instance based on their Zitadel organization.
 
 ### Postgres
 
-Stores three tables (see [Data model](#data-model)). Only used in multi-tenant mode. In self-hosted/stdio mode, no database is needed.
+Stores three tables (see [Data model](#data-model)).
 
 ### Zitadel Cloud
 
@@ -47,15 +55,14 @@ Managed identity provider. Handles:
 
 ### Caddy
 
-Reverse proxy with automatic TLS. Sits in front of the MCP server and admin panel.
+Reverse proxy with automatic TLS. Sits in front of the MCP server and admin panel. Proxies `/authorize`, `/token`, and `/register` to Zitadel for Claude.ai compatibility.
 
 ### Admin Panel
 
 Routes mounted directly into the MCP SDK's Starlette app at `/admin` (not wrapped in a separate Starlette, to preserve the SDK's lifespan management). Provides:
-- **Admin dashboard**: manage tenants, view user connections
-- **Self-service setup** (`/admin/setup`): shows ALL tenants a user belongs to, each with its own API key form
+- **Self-service setup** (`/admin/setup`): shows all tenants a user belongs to, each with its own API key form
 - OAuth login via Zitadel (OIDC Authorization Code + PKCE)
-- Logout clears Zitadel session (end_session endpoint) and shows account picker on next login (prompt=select_account)
+- Logout clears Zitadel session and shows account picker on next login
 
 ---
 
@@ -73,7 +80,7 @@ Each tenant represents one Odoo instance linked to a Zitadel organization.
 | `zitadel_org_id` | TEXT | Zitadel organization ID (unique) |
 | `odoo_url` | TEXT | Odoo instance URL |
 | `odoo_db` | TEXT | Odoo database name (empty for Odoo.sh) |
-| `api_version` | TEXT | Always `json2` for new deployments |
+| `api_version` | TEXT | `json2` or `xmlrpc` (auto-detected in future) |
 | `is_active` | BOOLEAN | Soft delete flag |
 
 ### `user_connections`
@@ -86,7 +93,7 @@ Each row maps a Zitadel user to a tenant with their Odoo API key.
 | `zitadel_sub` | TEXT | Zitadel subject ID |
 | `email` | TEXT | User email (informational) |
 | `tenant_id` | INTEGER | FK to tenants |
-| `odoo_api_key` | TEXT | User's personal Odoo API key |
+| `odoo_api_key` | TEXT | Encrypted Odoo API key (Fernet/AES-128) |
 | `is_active` | BOOLEAN | Soft delete flag |
 
 Unique constraint on `(zitadel_sub, tenant_id)`.
@@ -103,9 +110,9 @@ Super admins (Pantalytics) who can manage all tenants.
 
 ---
 
-## Auth flow
+## Auth flows
 
-### MCP tool call (multi-tenant)
+### MCP tool call
 
 ```
 Claude.ai
@@ -144,15 +151,13 @@ User -> /admin/login -> Zitadel (OIDC + PKCE) -> /admin/callback
     |   user?  -> /admin/setup (self-service)
 ```
 
+### OAuth discovery (Claude.ai)
+
+The MCP server serves Protected Resource Metadata (PRM) that points directly to Zitadel as the authorization server and includes the OIDC app Client ID (`MCP_OIDC_CLIENT_ID`). Claude.ai discovers Zitadel's endpoints via OIDC discovery fallback (`/.well-known/openid-configuration`).
+
+**Known limitation**: Claude.ai can only have one active Odoo connector per browser session because Zitadel reuses the existing session. Super admins who need to access multiple orgs should use separate Zitadel accounts.
+
 ---
-
-## OAuth flow (Claude.ai)
-
-No custom `/.well-known/oauth-authorization-server` route. The MCP server serves Protected Resource Metadata (PRM) that points directly to Zitadel as the authorization server and includes the OIDC app Client ID (`MCP_OIDC_CLIENT_ID`). Claude.ai discovers Zitadel's endpoints via OIDC discovery fallback (`/.well-known/openid-configuration`).
-
-Claude.ai does not support dynamic client registration, so users must enter the Client ID manually in Advanced settings when adding the MCP connector.
-
-**Multi-tenant limitation**: Claude.ai can only have one active Odoo connector per browser session because Zitadel reuses the existing session. Super admins who need to access multiple orgs should use separate Zitadel accounts per org.
 
 ## User onboarding flow
 
@@ -161,37 +166,24 @@ Claude.ai does not support dynamic client registration, so users must enter the 
 3. **Admin** shares the setup link with the customer
 4. **User** opens setup link, logs in with their company account
 5. **User** enters their Odoo API key for each tenant they belong to
-6. **User** adds the MCP server URL to Claude.ai, entering the Client ID in Advanced settings
+6. **User** adds the MCP server URL to Claude.ai
 7. Claude authenticates via OAuth, MCP server routes to the right Odoo
 
 ---
 
-## Deployment modes
+## Deployment
 
-### Managed SaaS (multi-tenant)
+Docker Compose with three containers:
 
-Used for production. Single MCP server serves all customers.
-
-| Component | Role |
+| Container | Role |
 |-----------|------|
-| MCP Server | FastMCP + admin panel, runs in Docker |
-| Postgres | Tenant config, user connections, admins |
-| Zitadel Cloud | Identity, organizations, OAuth |
-| Caddy | Reverse proxy, TLS |
+| `mcp-server` | FastMCP + admin panel (Python) |
+| `mcp-postgres` | Tenant config, user connections, admins |
+| `mcp-caddy` | Reverse proxy, TLS, OAuth route proxying |
 
-Environment: `DATABASE_URL` set, `OAUTH_ISSUER_URL` set, `MCP_OIDC_CLIENT_ID` set.
+Plus Zitadel Cloud (external, not in Docker Compose).
 
-Deployed via Docker Compose on Hetzner VPS at `/opt/odoo-mcp-pro/deploy/`.
-
-### Self-hosted (stdio)
-
-For personal use. No Postgres, no Zitadel, no Docker.
-
-```
-Claude Code --stdio--> odoo-mcp-pro (local process) --> Odoo
-```
-
-Environment: `ODOO_URL`, `ODOO_API_KEY`, `ODOO_API_VERSION=json2`.
+See [SETUP.md](SETUP.md) for the full deployment guide.
 
 ---
 
@@ -200,11 +192,11 @@ Environment: `ODOO_URL`, `ODOO_API_KEY`, `ODOO_API_VERSION=json2`.
 Abstracted behind `OdooConnectionProtocol`. Factory pattern in `server.py`:
 
 ```
-ODOO_API_VERSION=json2   ->  OdooJSON2Connection   (Odoo 19+, recommended)
-ODOO_API_VERSION=xmlrpc  ->  OdooConnection        (Odoo 14-18, legacy)
+Odoo 19+   ->  OdooJSON2Connection   (JSON/2 API, httpx)
+Odoo 14-18 ->  OdooConnection        (XML-RPC, stdlib)
 ```
 
-In multi-tenant mode, `ConnectionRegistry` creates and caches connections per user. Connections are evicted after 30 minutes of inactivity.
+`ConnectionRegistry` creates and caches connections per user. Connections are evicted after 30 minutes of inactivity.
 
 ### JSON/2 API
 
@@ -222,7 +214,7 @@ In multi-tenant mode, `ConnectionRegistry` creates and caches connections per us
 
 ## Access control
 
-In JSON/2 mode, the MCP server checks Odoo ACLs before sending requests:
+The MCP server checks Odoo ACLs before sending requests:
 
 ```
 POST /json/2/{model}/check_access_rights
@@ -231,16 +223,6 @@ POST /json/2/{model}/check_access_rights
 ```
 
 Results are cached per model for 5 minutes. This prevents unexpected 403s and gives clear error messages.
-
----
-
-## Key design decisions
-
-- **1 Zitadel org = 1 Odoo instance.** The org_id from the OAuth token determines which tenant to use.
-- **API keys = Odoo permissions.** Each user has their own Odoo API key. Odoo enforces ACLs and record rules.
-- **Zitadel for identity only.** Zitadel handles authentication and organization structure. It does not store Odoo credentials.
-- **Stateless proxy.** The MCP server does not store or cache Odoo data. Connections are cached for performance but contain no business data.
-- **Self-service setup.** Users enter their own API key. Admins only need to create the tenant and share the link.
 
 ---
 
@@ -261,6 +243,6 @@ Results are cached per model for 5 minutes. This prevents unexpected 403s and gi
 | `config.py` | OdooConfig dataclass, loaded from env vars |
 | `tools.py` | 6 MCP tools with smart field selection |
 | `resources.py` | 4 MCP resources (URI-based read access) |
-| `access_control.py` | JSON/2 access control via check_access_rights |
+| `access_control.py` | Access control via check_access_rights |
 
 All source files live in `mcp_server_odoo/`. Tests in `tests/`.

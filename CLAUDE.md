@@ -1,75 +1,27 @@
-# CLAUDE.md -- Project context for Claude Code
+# CLAUDE.md -- Instructions for Claude Code
 
 ## What this project is
 
-**odoo-mcp-pro** -- a B2B SaaS MCP server connecting Claude AI to Odoo ERP. Runs as a
-multi-tenant managed service (Postgres + Zitadel Cloud + Docker) or locally via stdio
-for personal use.
+**odoo-mcp-pro** -- a B2B SaaS MCP server connecting Claude AI to Odoo ERP.
+Multi-tenant managed service: Postgres + Zitadel Cloud + Docker.
 
-Originally forked from [ivnvxd/mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) (MPL-2.0),
-now a standalone product with multi-tenant architecture, admin panel, JSON/2 client, and OAuth 2.1.
+See [architecture.md](architecture.md) for technical details.
 
-## Current state
+## Design principles
 
-- Multi-tenant SaaS: one server, many customers (Zitadel orgs -> Postgres tenants -> Odoo instances)
-- Admin panel for tenant management and user self-service setup
-- JSON/2 client for Odoo 19+ (recommended), XML-RPC for Odoo 14-18 (legacy)
-- OAuth 2.1 via Zitadel Cloud for managed deployments
-- Stdio mode still works for local/personal use (no Postgres needed)
-- 35+ test files, 437+ unit tests, all mocked
+1. **Odoo + AI, samen sterker** -- don't replace Odoo, make it more accessible via AI
+2. **Use the interface that fits** -- Odoo UI for complex config, Claude for quick queries and data entry
+3. **Odoo is the boss** -- all data, permissions, and business logic live in Odoo; MCP server is a stateless proxy
+4. **No setup barriers** -- self-service, auto-detection, minimal configuration
+5. **Open and transparent** -- open-source (MPL-2.0), standard protocols (MCP, OAuth 2.1)
 
-## Architecture
+## Key architecture facts
 
-### Multi-tenant (managed SaaS)
-
-```
-Claude.ai -> OAuth 2.1 -> MCP Server -> Odoo (customer A)
-                              |
-                          Postgres (tenants, user_connections, admins)
-                              |
-                          Zitadel Cloud (identity, orgs)
-```
-
-- 1 Zitadel org = 1 Odoo instance (mapped via tenants table)
-- Each user has their own Odoo API key (stored in user_connections)
+- 1 Zitadel org = 1 Odoo instance (mapped via tenants table in Postgres)
+- Each user has their own Odoo API key (encrypted at rest with Fernet)
 - ConnectionRegistry caches connections per user (30 min TTL)
-- Admin panel at /admin for tenant CRUD and user self-service
-- Admin panel routes are inserted into the MCP SDK's Starlette app directly (not wrapped in a separate Starlette) to preserve the SDK's lifespan management
-
-### Single-tenant (stdio)
-
-```
-Claude Code --stdio--> odoo-mcp-pro (local process) --> Odoo
-```
-
-No Postgres, no Zitadel. Connection config from env vars.
-
-### Connection factory
-
-```
-ODOO_API_VERSION=json2   ->  OdooJSON2Connection   (Odoo 19+)
-ODOO_API_VERSION=xmlrpc  ->  OdooConnection        (Odoo 14-18)
-```
-
-## Key files
-
-| File | Role |
-|------|------|
-| `server.py` | Factory pattern, OAuth wiring, FastMCP setup, multi-tenant routing |
-| `registry.py` | ConnectionRegistry -- maps authenticated users to Odoo connections |
-| `admin/app.py` | Admin panel FastAPI app factory |
-| `admin/routes.py` | Admin CRUD routes + self-service setup (/admin/setup) |
-| `admin/db.py` | Postgres DatabaseManager (tenants, user_connections, admins) |
-| `admin/auth.py` | OAuth login flow, session cookies, CSRF tokens |
-| `admin/templates/` | Jinja2 HTML templates for admin panel |
-| `connection_protocol.py` | Protocol class defining the connection interface |
-| `odoo_json2_connection.py` | JSON/2 client using httpx |
-| `odoo_connection.py` | XML-RPC client (Odoo 14-18) |
-| `oauth.py` | ZitadelTokenVerifier -- token validation via introspection |
-| `config.py` | OdooConfig with api_version field |
-| `tools.py` | 6 MCP tools with smart field selection |
-| `resources.py` | 4 MCP resources (URI-based) |
-| `access_control.py` | JSON/2 access control via check_access_rights |
+- Admin panel routes mounted directly into MCP SDK's Starlette app (not wrapped separately)
+- Connection factory: `OdooJSON2Connection` (Odoo 19+) / `OdooConnection` (Odoo 14-18, XML-RPC)
 
 ## JSON/2 API key points
 
@@ -81,82 +33,39 @@ ODOO_API_VERSION=xmlrpc  ->  OdooConnection        (Odoo 14-18)
 - Responses are raw JSON (no RPC envelope)
 - Errors return proper HTTP status codes (401, 403, 404, 422, 500)
 
-## Config
-
-### Odoo connection (single-tenant / stdio)
-
-| Env var | Values | Default |
-|---------|--------|---------|
-| `ODOO_API_VERSION` | `json2`, `xmlrpc` | `xmlrpc` |
-| `ODOO_URL` | URL | required |
-| `ODOO_DB` | database name | required for json2 |
-| `ODOO_API_KEY` | API key | required for json2 |
-| `ODOO_MCP_TRANSPORT` | `stdio`, `streamable-http` | `stdio` |
-| `ODOO_MCP_HOST` | bind address | `localhost` |
-| `ODOO_MCP_PORT` | port | `8000` |
-
-### Multi-tenant (managed SaaS)
-
-| Env var | Description |
-|---------|-------------|
-| `DATABASE_URL` | Postgres connection string (enables multi-tenant mode) |
-| `ADMIN_SESSION_SECRET` | Secret for session cookie signing |
-| `ADMIN_BOOTSTRAP_SUB` | Zitadel subject ID of initial admin user |
-| `ADMIN_BOOTSTRAP_EMAIL` | Email of initial admin user |
-| `ADMIN_BASE_URL` | Public URL of admin panel (for redirect URIs) |
-| `ADMIN_OAUTH_CLIENT_ID` | Zitadel OIDC client ID for admin login |
-| `ADMIN_DEV_LOGIN` | Set to `true` for dev login without Zitadel |
-
-### OAuth 2.1 (MCP token validation)
-
-| Env var | Description |
-|---------|-------------|
-| `OAUTH_ISSUER_URL` | Zitadel instance URL (enables OAuth when set) |
-| `MCP_OIDC_CLIENT_ID` | OIDC app Client ID (sent in PRM for Claude.ai; no dynamic registration) |
-| `ZITADEL_INTROSPECTION_URL` | Token introspection endpoint |
-| `ZITADEL_CLIENT_ID` | Service user client ID (for introspection) |
-| `ZITADEL_CLIENT_SECRET` | Service user client secret |
-| `OAUTH_RESOURCE_SERVER_URL` | Public URL of this MCP server (for RFC 9728) |
-| `OAUTH_EXPECTED_AUDIENCE` | Optional: Zitadel app/project ID |
-
-OAuth flow: No custom `/.well-known/oauth-authorization-server` route. The Protected Resource Metadata (PRM) points directly to Zitadel as the authorization server. Claude.ai discovers Zitadel's endpoints via OIDC discovery fallback (`/.well-known/openid-configuration`).
-
-## Development setup
+## Development
 
 ```bash
 uv venv --python 3.10
 source .venv/bin/activate
 uv pip install -e ".[dev]"
-```
-
-## Testing
-
-```bash
-pytest tests/               # unit tests (mocked)
-pytest tests/ -x -q         # quick run, stop on first failure
+pytest tests/ -x -q         # unit tests (mocked), stop on first failure
 ```
 
 ## Conventions
 
 - Follow existing code style (ruff configured in pyproject.toml)
-- Keep JSON/2 client in separate file -- do not modify odoo_connection.py
-- Both connection classes must satisfy OdooConnectionProtocol
+- Keep JSON/2 and XML-RPC clients in separate files -- do not merge them
+- Both connection classes must satisfy `OdooConnectionProtocol`
 - Shared exceptions live in `exceptions.py`
 - No new dependencies without discussion (httpx already available)
-- Admin panel uses Jinja2 templates with Tailwind CSS (via CDN)
-- Admin panel routes are mounted directly into the MCP SDK's Starlette app (not wrapped separately)
-- Tenant = Odoo instance linked to Zitadel org
-- UserConnection = user's API key for a specific tenant
-- Setup page shows ALL tenants a user belongs to (not just org-based single tenant); each tenant has its own API key form
-- Logout clears Zitadel session (end_session endpoint) and shows account picker on next login (prompt=select_account)
-- Claude.ai limitation: only one active Odoo connector per browser session due to Zitadel session reuse; super admins use separate accounts per org
+- Admin panel: Jinja2 templates + Tailwind CSS (via CDN)
+- Terminology: Tenant = Odoo instance linked to Zitadel org; UserConnection = user's API key for a tenant
 
-## Deployment
+## Key files
 
-Multi-tenant deployment uses Docker Compose on Hetzner VPS at `/opt/odoo-mcp-pro/deploy/`:
-- MCP server container (FastMCP + admin panel)
-- Postgres container
-- Caddy container (TLS reverse proxy)
-- Zitadel Cloud for identity (external, not in docker-compose)
-
-See [SETUP.md](SETUP.md) for deployment instructions.
+| File | Role |
+|------|------|
+| `server.py` | Factory pattern, OAuth wiring, FastMCP setup |
+| `registry.py` | ConnectionRegistry -- maps users to Odoo connections |
+| `admin/routes.py` | Self-service setup + admin routes |
+| `admin/db.py` | Postgres DatabaseManager |
+| `admin/auth.py` | OAuth login flow, session cookies, CSRF |
+| `odoo_json2_connection.py` | JSON/2 client (httpx, Odoo 19+) |
+| `odoo_connection.py` | XML-RPC client (stdlib, Odoo 14-18) |
+| `connection_protocol.py` | Protocol class for connection interface |
+| `oauth.py` | ZitadelTokenVerifier -- token introspection |
+| `config.py` | OdooConfig dataclass |
+| `tools.py` | 6 MCP tools with smart field selection |
+| `resources.py` | 4 MCP resources (URI-based) |
+| `access_control.py` | Odoo ACL checks via check_access_rights |

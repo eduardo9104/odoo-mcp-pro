@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-03-27
+
+### Added
+- **Multi-tenant SaaS architecture**: one MCP server serves multiple customers, each with their own Odoo instance
+- **Admin panel** (`/admin`): tenant management and user self-service setup page with Jinja2 + Tailwind
+- **OAuth 2.1 via Zitadel Cloud**: token-based authentication for Claude.ai users (PKCE, introspection)
+- **Dynamic Client Registration (DCR)**: `/register` endpoint returns pre-configured client_id for Claude.ai
+- **ConnectionRegistry**: maps authenticated users to Odoo connections via Postgres (30 min TTL cache)
+- **API key encryption**: user Odoo API keys encrypted at rest with Fernet (AES-128)
+- **Pantalytics branding**: login page, setup page, admin panel
+- **`server_info` tool**: exposes server version and git commit hash
+- **Protected Resource Metadata (PRM)**: RFC 9728 discovery pointing to Zitadel as authorization server
+
+### Changed
+- **Architecture**: from single-tenant stdio to multi-tenant SaaS with Postgres + Zitadel + Docker
+- **Deployment**: Docker Compose on Hetzner VPS with Caddy (TLS) reverse proxy
+- **Setup page**: shows all tenants a user belongs to, each with its own API key form
+- **`list_models`**: fetches from `ir.model` in JSON/2 mode, skips per-model permission checks for performance
+- **Logout**: clears Zitadel session and shows account picker on next login
+
+### Fixed
+- **OAuth discovery**: correct PRM routing, issuer URL pointing to server root
+- **Caddy proxy**: `/authorize`, `/token`, `/register` routes proxied to Zitadel for Claude.ai compatibility
+- **Setup page**: POST handler uses redirect instead of broken template render
+- **Tool responses**: use tenant URL instead of placeholder
+
+### Removed
+- **YOLO mode**: removed in favor of Odoo native permissions as single source of truth (v0.6.0/v0.7.0)
+- **Admin dashboard tenant CRUD**: simplified to self-service setup only
+- **V1 login UI references**: use Zitadel Login UI V2 only
+
 ## [0.4.0] - 2026-02-22
 
 ### Added
