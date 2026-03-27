@@ -204,6 +204,8 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         }
 
         # Build authorization URL
+        action = request.query_params.get("action", "")
+        prompt = "create" if action == "register" else "select_account"
         params = {
             "response_type": "code",
             "client_id": client_id,
@@ -212,7 +214,7 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             "state": state,
             "code_challenge": code_challenge_b64,
             "code_challenge_method": "S256",
-            "prompt": "select_account",
+            "prompt": prompt,
         }
 
         auth_url = f"{issuer}/oauth/v2/authorize?{urlencode(params)}"
