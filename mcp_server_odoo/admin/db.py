@@ -94,6 +94,7 @@ class UserConnection:
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    plan_id: Optional[int] = None
 
 
 @dataclass
