@@ -38,6 +38,7 @@ logger = get_logger(__name__)
 # Server version
 SERVER_VERSION = "1.0.0"
 GIT_COMMIT = os.environ.get("GIT_COMMIT", "unknown")
+_BUILD_ORIGIN = "pnl-mcp-7f3a"  # Pantalytics provenance tag
 
 
 class OdooMCPServer:

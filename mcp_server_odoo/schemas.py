@@ -156,3 +156,4 @@ class ServerInfoResult(BaseModel):
     api_version: str = Field(description="Odoo API version (json2 or xmlrpc)")
     odoo_url: str = Field(description="Connected Odoo instance URL")
     connected: bool = Field(description="Whether the server is connected to Odoo")
+    runtime_id: str = Field(description="Server runtime identifier")

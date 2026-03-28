@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pantalytics/odoo-mcp-pro/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MPL%202.0-blue.svg" alt="License: MPL 2.0"/></a>
+  <a href="https://github.com/pantalytics/odoo-mcp-pro/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial-blue.svg" alt="License: PolyForm Noncommercial"/></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"/></a>
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-green.svg" alt="MCP Compatible"/></a>
   <a href="https://www.odoo.com/documentation/19.0/developer/reference/external_api.html"><img src="https://img.shields.io/badge/Odoo-14--19+-714b67.svg" alt="Odoo 14-19+"/></a>
@@ -107,13 +107,21 @@ Contributions are welcome. Fork the repo, create a feature branch, run `pytest t
 
 ## License
 
-[Mozilla Public License 2.0](LICENSE) -- the same license as Odoo Community.
+[PolyForm Noncommercial 1.0.0](LICENSE) -- free for personal and noncommercial use. Commercial use requires a separate license from [Pantalytics](https://pantalytics.com).
+
+## For Odoo Implementation Partners
+
+**odoo-mcp-pro** is licensed under [PolyForm Noncommercial 1.0.0](LICENSE). Using this software to provide commercial services to your clients -- including hosting, reselling, bundling, or offering it as part of your Odoo implementation services -- is a violation of the license and will be enforced. We actively monitor for unauthorized commercial use and will pursue legal action where necessary.
+
+**Want to offer AI-powered Odoo to your clients?** We run a Partner Program with a referral commission. You recommend odoo-mcp-pro to your end users, they sign up through your referral link, and you earn a recurring fee. No hosting or maintenance on your side.
+
+Interested? Contact [rutger@pantalytics.com](mailto:rutger@pantalytics.com) for details.
 
 ## Built by Pantalytics
 
 **odoo-mcp-pro** is built and maintained by [Pantalytics](https://pantalytics.com), an Odoo implementation partner based in Utrecht, Netherlands.
 
-Originally forked from [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) by Andrey Ivanov (MPL-2.0).
+Originally forked from [mcp-server-odoo](https://github.com/ivnvxd/mcp-server-odoo) by Andrey Ivanov (originally MPL-2.0).
 
 ---
 

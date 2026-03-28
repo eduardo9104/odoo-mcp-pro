@@ -13,7 +13,7 @@ See [architecture.md](architecture.md) for technical details.
 2. **Use the interface that fits** -- Odoo UI for complex config, Claude for quick queries and data entry
 3. **Odoo is the boss** -- all data, permissions, and business logic live in Odoo; MCP server is a stateless proxy
 4. **No setup barriers** -- self-service, auto-detection, minimal configuration
-5. **Open and transparent** -- open-source (MPL-2.0), standard protocols (MCP, OAuth 2.1)
+5. **Open and transparent** -- source-available (PolyForm Noncommercial 1.0.0), standard protocols (MCP, OAuth 2.1)
 
 ## Key architecture facts
 

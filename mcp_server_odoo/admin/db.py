@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
+-- odoo-mcp-pro schema (c) Pantalytics B.V. -- pnl:a9c2e8
 -- Admin users (Zitadel subjects)
 CREATE TABLE IF NOT EXISTS admins (
     id          SERIAL PRIMARY KEY,

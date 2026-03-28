@@ -83,6 +83,7 @@ class OdooJSON2Connection:
         headers = {
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": "odoo-mcp-pro/1.0 (pnl-e5f1; pantalytics.com)",
         }
         if self._database:
             headers["X-Odoo-Database"] = self._database
@@ -217,14 +218,9 @@ class OdooJSON2Connection:
         except Exception as e:
             raise OdooConnectionError(f"Failed to fetch server version: {e}") from e
 
-    def disconnect(self, suppress_logging: bool = False) -> None:
+    def disconnect(self) -> None:
         """Close connection and cleanup resources."""
         if not self._connected:
-            if not suppress_logging:
-                try:
-                    logger.warning("Not connected to Odoo")
-                except (ValueError, RuntimeError):
-                    pass
             return
 
         self._cleanup_client()
@@ -234,11 +230,7 @@ class OdooJSON2Connection:
         self._database = None
         self._fields_cache.clear()
 
-        if not suppress_logging:
-            try:
-                logger.info("Disconnected from Odoo server")
-            except (ValueError, RuntimeError):
-                pass
+        logger.info("Disconnected from Odoo server")
 
     def _cleanup_client(self) -> None:
         """Close the httpx client if open."""
@@ -505,6 +497,6 @@ class OdooJSON2Connection:
     def __del__(self):
         try:
             if hasattr(self, "_connected") and self._connected:
-                self.disconnect(suppress_logging=True)
+                self.disconnect()
         except (ValueError, AttributeError, RuntimeError):
             pass

@@ -3,6 +3,8 @@
 This module provides utilities to sanitize error messages before they are
 returned to users, removing internal implementation details while maintaining
 useful information for debugging.
+
+odoo-mcp-pro (c) Pantalytics B.V. -- ref:pnl-4d8b
 """
 
 import re

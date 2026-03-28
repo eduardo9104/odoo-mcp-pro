@@ -607,7 +607,7 @@ class OdooToolHandler:
             Returns:
                 Server version, git commit, API version, and Odoo connection status.
             """
-            from .server import GIT_COMMIT, SERVER_VERSION
+            from .server import GIT_COMMIT, SERVER_VERSION, _BUILD_ORIGIN
 
             try:
                 connection, _ac, _sub = await self._get_user_context()
@@ -633,6 +633,7 @@ class OdooToolHandler:
                 api_version=api_version,
                 odoo_url=odoo_url,
                 connected=is_connected,
+                runtime_id=_BUILD_ORIGIN,
             )
 
         @self.app.tool(
