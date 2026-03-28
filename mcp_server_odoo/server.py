@@ -340,8 +340,6 @@ class OdooMCPServer:
 
     def _register_resources(self):
         """Register resource handlers after connection is established."""
-        if not self.access_controller:
-            self.access_controller = AccessController(self.config, connection=self.connection)
         self.resource_handler = register_resources(
             self.app, self.connection, self.access_controller, self.config
         )
@@ -349,8 +347,6 @@ class OdooMCPServer:
 
     def _register_tools(self):
         """Register tool handlers after connection is established."""
-        if not self.access_controller:
-            self.access_controller = AccessController(self.config, connection=self.connection)
         self.tool_handler = register_tools(
             self.app, self.connection, self.access_controller, self.config
         )
@@ -365,7 +361,12 @@ class OdooMCPServer:
 
     def _register_tools_with_registry(self):
         """Register tool handlers with ConnectionRegistry (multi-tenant)."""
-        self.tool_handler = register_tools(self.app, config=self.config, registry=self.registry)
+        self.tool_handler = register_tools(
+            self.app,
+            config=self.config,
+            registry=self.registry,
+            usage_tracker=getattr(self, "usage_tracker", None),
+        )
         logger.info("Registered MCP tools (multi-tenant)")
 
     async def run_stdio(self):
@@ -438,6 +439,12 @@ class OdooMCPServer:
                     await self.db_manager.connect()
                     self.registry = ConnectionRegistry(self.db_manager)
 
+                    # Initialize usage tracking
+                    from .usage import UsageTracker
+
+                    self.usage_tracker = UsageTracker(self.db_manager._pool)
+                    logger.info("Usage tracking enabled")
+
                     # Register tools/resources with registry (no single connection)
                     self._register_resources_with_registry()
                     self._register_tools_with_registry()
@@ -460,7 +467,7 @@ class OdooMCPServer:
                 )
 
             # Build ASGI app: MCP + optional admin panel
-            mcp_asgi = self.app.streamable_http_app()
+            asgi_app = self.app.streamable_http_app()
 
             if database_url:
                 # Multi-tenant: mount admin panel alongside MCP
@@ -474,17 +481,11 @@ class OdooMCPServer:
                     registry=self.registry,
                     zitadel_issuer_url=issuer_url,
                 )
-                # Mount admin panel as middleware on the MCP ASGI app.
-                # We can't wrap mcp_asgi in a new Starlette because that breaks
-                # the MCP SDK's lifespan (StreamableHTTPSessionManager needs its
-                # task group initialized via the app's lifespan).
-
-                # Insert admin routes at the beginning of mcp_asgi's routes
-                mcp_asgi.routes.insert(0, Mount("/admin", app=admin_app, name="admin"))
+                # Insert admin routes at the beginning of the MCP ASGI app's routes.
+                # We can't wrap in a new Starlette because that breaks the MCP SDK's
+                # lifespan (StreamableHTTPSessionManager needs its task group).
+                asgi_app.routes.insert(0, Mount("/admin", app=admin_app, name="admin"))
                 logger.info("Admin panel mounted at /admin")
-                asgi_app = mcp_asgi
-            else:
-                asgi_app = mcp_asgi
 
             import uvicorn
 
@@ -535,11 +536,7 @@ class OdooMCPServer:
         Returns:
             Dict with health status and metrics
         """
-        is_connected = (
-            self.connection and self.connection.is_authenticated
-            if hasattr(self.connection, "is_authenticated")
-            else False
-        )
+        is_connected = bool(self.connection and self.connection.is_authenticated)
 
         # Get performance stats if available
         performance_stats = None
@@ -553,11 +550,7 @@ class OdooMCPServer:
             "connection": {
                 "connected": is_connected,
                 "url": self.config.url if self.config else None,
-                "database": (
-                    self.connection.database
-                    if self.connection and hasattr(self.connection, "database")
-                    else None
-                ),
+                "database": self.connection.database if self.connection else None,
             },
             "error_metrics": error_handler.get_metrics(),
             "recent_errors": error_handler.get_recent_errors(limit=5),

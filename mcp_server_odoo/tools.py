@@ -7,6 +7,7 @@ actions like creating, updating, or deleting records.
 
 from __future__ import annotations
 
+import contextvars
 import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -38,8 +39,12 @@ from .schemas import (
 
 if TYPE_CHECKING:
     from .registry import ConnectionRegistry
+    from .usage import UsageTracker
 
 logger = get_logger(__name__)
+
+# ContextVar to pass the current user's sub from _get_user_context to the wrapper
+_current_sub: contextvars.ContextVar[str] = contextvars.ContextVar("_current_sub", default="stdio")
 
 
 class OdooToolHandler:
@@ -52,30 +57,27 @@ class OdooToolHandler:
         access_controller: Optional[AccessController] = None,
         config: Optional[OdooConfig] = None,
         registry: Optional[ConnectionRegistry] = None,
+        usage_tracker: Optional[UsageTracker] = None,
     ):
         """Initialize tool handler.
 
-        Supports two modes:
-        - Registry mode (HTTP/multi-tenant): pass registry, connection per-request via auth context
-        - Fallback mode (stdio/single-tenant): pass connection + access_controller directly
-
-        Args:
-            app: FastMCP application instance
-            connection: Fallback Odoo connection for stdio mode
-            access_controller: Fallback access controller for stdio mode
-            config: Odoo configuration instance
-            registry: ConnectionRegistry for multi-tenant lookups (HTTP mode)
+        Two modes:
+        - Multi-tenant (HTTP): pass registry, connection resolved per-request via auth context
+        - Single-tenant (stdio): pass connection + access_controller directly
         """
         self.app = app
         self.registry = registry
-        self._fallback_connection = connection
-        self._fallback_access_controller = access_controller
+        self.connection = connection
+        self.access_controller = access_controller
         self.config = config
+        self.usage_tracker = usage_tracker
 
         # Register tools
         self._register_tools()
 
-    async def _get_user_context(self) -> Tuple[OdooConnectionProtocol, AccessController]:
+    async def _get_user_context(
+        self,
+    ) -> Tuple[OdooConnectionProtocol, AccessController, str]:
         """Get connection and access controller for the current request.
 
         In HTTP mode with OAuth, reads the authenticated user's subject ID
@@ -83,40 +85,39 @@ class OdooToolHandler:
         In stdio mode, returns the fallback connection.
 
         Returns:
-            Tuple of (connection, access_controller)
+            Tuple of (connection, access_controller, zitadel_sub)
 
         Raises:
             ValidationError: If no connection is available
+            RateLimitExceeded: If user has exceeded their daily limit
         """
         if self.registry is not None:
-            try:
-                from mcp.server.auth.middleware.auth_context import get_access_token
+            from mcp.server.auth.middleware.auth_context import get_access_token
 
-                access_token = get_access_token()
-                if access_token is not None:
-                    sub = access_token.client_id
-                    cached = await self.registry.get_connection(sub)
-                    return cached.connection, cached.access_controller
-            except Exception:
-                # Fall through to fallback
-                pass
+            access_token = get_access_token()
+            if access_token is None:
+                raise ValidationError("No authentication token available")
+            sub = access_token.client_id
 
-        # Fallback for stdio mode or when no auth context is available
-        if self._fallback_connection is not None and self._fallback_access_controller is not None:
-            return self._fallback_connection, self._fallback_access_controller
+            # Check rate limit before doing any work
+            if self.usage_tracker:
+                await self.usage_tracker.check_rate_limit(sub)
+
+            cached = await self.registry.get_connection(sub)
+            _current_sub.set(sub)
+            return cached.connection, cached.access_controller, sub
+
+        # Stdio mode: use direct connection (no rate limiting)
+        if self.connection is not None and self.access_controller is not None:
+            _current_sub.set("stdio")
+            return self.connection, self.access_controller, "stdio"
 
         raise ValidationError("No Odoo connection available")
 
-    # Convenience properties for backward compatibility in non-async helpers
-    @property
-    def connection(self) -> OdooConnectionProtocol:
-        """Fallback connection for sync helpers. Use _get_user_context() in async handlers."""
-        return self._fallback_connection
-
-    @property
-    def access_controller(self) -> AccessController:
-        """Fallback access controller for sync helpers. Use _get_user_context() in async handlers."""
-        return self._fallback_access_controller
+    def _track_usage(self, sub: str, tool_name: str) -> None:
+        """Fire-and-forget usage tracking. No-op if tracker not configured."""
+        if self.usage_tracker and sub != "stdio":
+            self.usage_tracker.record_usage_fire_and_forget(sub, tool_name)
 
     def _format_datetime(self, value: str) -> str:
         """Format datetime values to ISO 8601 with timezone."""
@@ -148,7 +149,7 @@ class OdooToolHandler:
         connection: Optional[OdooConnectionProtocol] = None,
     ) -> Dict[str, Any]:
         """Process datetime fields in a record to ensure proper formatting."""
-        conn = connection or self._fallback_connection
+        conn = connection or self.connection
         # Common datetime field names in Odoo
         known_datetime_fields = {
             "create_date",
@@ -400,12 +401,12 @@ class OdooToolHandler:
 
         Args:
             model: The Odoo model name
-            connection: Odoo connection to use (falls back to self._fallback_connection)
+            connection: Odoo connection to use (falls back to self.connection)
 
         Returns:
             List of field names to include by default, or None if unable to determine
         """
-        conn = connection or self._fallback_connection
+        conn = connection or self.connection
         try:
             # Get all field definitions
             fields_info = conn.fields_get(model)
@@ -494,6 +495,7 @@ class OdooToolHandler:
                 Search results with records, total count, and pagination info
             """
             result = await self._handle_search_tool(model, domain, fields, limit, offset, order)
+            self._track_usage(_current_sub.get(), "search_records")
             return SearchResult(**result)
 
         @self.app.tool(
@@ -543,7 +545,9 @@ class OdooToolHandler:
                 Record data with requested fields. When using smart defaults,
                 includes metadata with field statistics.
             """
-            return await self._handle_get_record_tool(model, record_id, fields)
+            result = await self._handle_get_record_tool(model, record_id, fields)
+            self._track_usage(_current_sub.get(), "get_record")
+            return result
 
         @self.app.tool(
             title="List Models",
@@ -562,6 +566,7 @@ class OdooToolHandler:
                 and allowed operations (read, write, create, unlink).
             """
             result = await self._handle_list_models_tool()
+            self._track_usage(_current_sub.get(), "list_models")
             return ModelsResult(**result)
 
         @self.app.tool(
@@ -584,6 +589,7 @@ class OdooToolHandler:
                 Resource template definitions with examples and enabled models.
             """
             result = await self._handle_list_resource_templates_tool()
+            self._track_usage(_current_sub.get(), "list_resource_templates")
             return ResourceTemplatesResult(**result)
 
         @self.app.tool(
@@ -604,7 +610,7 @@ class OdooToolHandler:
             from .server import GIT_COMMIT, SERVER_VERSION
 
             try:
-                connection, _ac = await self._get_user_context()
+                connection, _ac, _sub = await self._get_user_context()
                 is_connected = (
                     connection.is_authenticated
                     if hasattr(connection, "is_authenticated")
@@ -620,6 +626,7 @@ class OdooToolHandler:
                 api_version = self.config.api_version if self.config else "unknown"
                 odoo_url = "not connected"
 
+            self._track_usage(_current_sub.get(), "server_info")
             return ServerInfoResult(
                 version=SERVER_VERSION,
                 git_commit=GIT_COMMIT,
@@ -651,6 +658,7 @@ class OdooToolHandler:
                 Created record details with ID, URL, and confirmation.
             """
             result = await self._handle_create_record_tool(model, values)
+            self._track_usage(_current_sub.get(), "create_record")
             return CreateResult(**result)
 
         @self.app.tool(
@@ -678,6 +686,7 @@ class OdooToolHandler:
                 Updated record details with confirmation.
             """
             result = await self._handle_update_record_tool(model, record_id, values)
+            self._track_usage(_current_sub.get(), "update_record")
             return UpdateResult(**result)
 
         @self.app.tool(
@@ -703,6 +712,7 @@ class OdooToolHandler:
                 Deletion confirmation with the deleted record's name and ID.
             """
             result = await self._handle_delete_record_tool(model, record_id)
+            self._track_usage(_current_sub.get(), "delete_record")
             return DeleteResult(**result)
 
     async def _handle_search_tool(
@@ -716,7 +726,7 @@ class OdooToolHandler:
     ) -> Dict[str, Any]:
         """Handle search tool request."""
         try:
-            connection, access_controller = await self._get_user_context()
+            connection, access_controller, sub = await self._get_user_context()
             with perf_logger.track_operation("tool_search", model=model):
                 # Check model access
                 access_controller.validate_model_access(model, "read")
@@ -833,7 +843,7 @@ class OdooToolHandler:
     ) -> RecordResult:
         """Handle get record tool request."""
         try:
-            connection, access_controller = await self._get_user_context()
+            connection, access_controller, sub = await self._get_user_context()
             with perf_logger.track_operation("tool_get_record", model=model):
                 # Check model access
                 access_controller.validate_model_access(model, "read")
@@ -908,7 +918,7 @@ class OdooToolHandler:
     async def _handle_list_models_tool(self) -> Dict[str, Any]:
         """Handle list models tool request with permissions."""
         try:
-            connection, access_controller = await self._get_user_context()
+            connection, access_controller, sub = await self._get_user_context()
             with perf_logger.track_operation("tool_list_models"):
                 # Get models from MCP access controller
                 models = access_controller.get_enabled_models()
@@ -941,7 +951,7 @@ class OdooToolHandler:
     async def _handle_list_resource_templates_tool(self) -> Dict[str, Any]:
         """Handle list resource templates tool request."""
         try:
-            _connection, access_controller = await self._get_user_context()
+            _, access_controller, sub = await self._get_user_context()
             # Get list of enabled models that can be used with resources
             enabled_models = access_controller.get_enabled_models()
             model_names = [m["model"] for m in enabled_models if m.get("read", True)]
@@ -1003,7 +1013,7 @@ class OdooToolHandler:
     ) -> Dict[str, Any]:
         """Handle create record tool request."""
         try:
-            connection, access_controller = await self._get_user_context()
+            connection, access_controller, sub = await self._get_user_context()
             with perf_logger.track_operation("tool_create_record", model=model):
                 # Check model access
                 access_controller.validate_model_access(model, "create")
@@ -1075,7 +1085,7 @@ class OdooToolHandler:
     ) -> Dict[str, Any]:
         """Handle update record tool request."""
         try:
-            connection, access_controller = await self._get_user_context()
+            connection, access_controller, sub = await self._get_user_context()
             with perf_logger.track_operation("tool_update_record", model=model):
                 # Check model access
                 access_controller.validate_model_access(model, "write")
@@ -1153,7 +1163,7 @@ class OdooToolHandler:
     ) -> Dict[str, Any]:
         """Handle delete record tool request."""
         try:
-            connection, access_controller = await self._get_user_context()
+            connection, access_controller, sub = await self._get_user_context()
             with perf_logger.track_operation("tool_delete_record", model=model):
                 # Check model access
                 access_controller.validate_model_access(model, "unlink")
@@ -1202,6 +1212,7 @@ def register_tools(
     access_controller: Optional[AccessController] = None,
     config: Optional[OdooConfig] = None,
     registry: Optional[ConnectionRegistry] = None,
+    usage_tracker: Optional[UsageTracker] = None,
 ) -> OdooToolHandler:
     """Register all Odoo tools with the FastMCP app.
 
@@ -1211,6 +1222,7 @@ def register_tools(
         access_controller: Access control instance (stdio/single-tenant mode)
         config: Odoo configuration instance
         registry: ConnectionRegistry for multi-tenant mode (HTTP)
+        usage_tracker: UsageTracker for rate limiting and usage logging
 
     Returns:
         The tool handler instance
@@ -1221,6 +1233,7 @@ def register_tools(
         connection=connection,
         access_controller=access_controller,
         config=config,
+        usage_tracker=usage_tracker,
     )
     logger.info("Registered Odoo MCP tools")
     return handler

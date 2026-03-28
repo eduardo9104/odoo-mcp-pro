@@ -21,22 +21,9 @@ from .encryption import decrypt_api_key, encrypt_api_key
 logger = logging.getLogger(__name__)
 
 # Schema version for migrations
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
--- Tenants: Odoo instances linked to Zitadel organizations (legacy, kept for compatibility)
-CREATE TABLE IF NOT EXISTS tenants (
-    id              SERIAL PRIMARY KEY,
-    name            TEXT NOT NULL,
-    slug            TEXT NOT NULL UNIQUE,
-    zitadel_org_id  TEXT UNIQUE,
-    odoo_url        TEXT NOT NULL,
-    odoo_db         TEXT NOT NULL DEFAULT '',
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- Admin users (Zitadel subjects)
 CREATE TABLE IF NOT EXISTS admins (
     id          SERIAL PRIMARY KEY,
@@ -63,52 +50,37 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL,
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
-"""
 
-# Migration from v2 (tenant-based user_connections) to v3 (self-service)
-MIGRATION_V2_TO_V3 = """
--- Recreate user_connections without tenant dependency
--- First, save existing data
-CREATE TABLE IF NOT EXISTS user_connections_v2_backup AS SELECT * FROM user_connections;
-
--- Drop old table and recreate
-DROP TABLE IF EXISTS user_connections;
-
-CREATE TABLE user_connections (
-    id           SERIAL PRIMARY KEY,
-    zitadel_sub  TEXT NOT NULL UNIQUE,
-    email        TEXT,
-    odoo_url     TEXT NOT NULL,
-    odoo_api_key TEXT NOT NULL,
-    is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at   TIMESTAMPTZ DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ DEFAULT NOW()
+-- v4: Usage tracking and rate limiting
+CREATE TABLE IF NOT EXISTS usage_plans (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    daily_limit INTEGER NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Migrate data: join with tenants to get odoo_url, take first connection per user
-INSERT INTO user_connections (zitadel_sub, email, odoo_url, odoo_api_key, is_active, created_at, updated_at)
-SELECT DISTINCT ON (uc.zitadel_sub)
-    uc.zitadel_sub, uc.email, t.odoo_url, uc.odoo_api_key, uc.is_active, uc.created_at, uc.updated_at
-FROM user_connections_v2_backup uc
-JOIN tenants t ON uc.tenant_id = t.id
-ORDER BY uc.zitadel_sub, uc.updated_at DESC;
+INSERT INTO usage_plans (name, daily_limit) VALUES ('free', 1000)
+ON CONFLICT (name) DO NOTHING;
 
--- Update schema version
-INSERT INTO schema_version (version) VALUES (3);
-"""
+ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES usage_plans(id);
 
-# Migration from v1 (odoo_databases/user_databases) to v2 (tenants/user_connections)
-MIGRATION_V1_TO_V2 = """
--- Rename odoo_databases -> tenants (add zitadel_org_id column)
-ALTER TABLE IF EXISTS odoo_databases RENAME TO tenants;
-ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS zitadel_org_id TEXT UNIQUE;
+CREATE TABLE IF NOT EXISTS usage_log (
+    id           BIGSERIAL PRIMARY KEY,
+    zitadel_sub  TEXT NOT NULL,
+    tool_name    TEXT NOT NULL,
+    called_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    duration_ms  INTEGER,
+    error        BOOLEAN DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_usage_log_sub_called ON usage_log (zitadel_sub, called_at);
 
--- Rename user_databases -> user_connections (rename odoo_database_id -> tenant_id)
-ALTER TABLE IF EXISTS user_databases RENAME TO user_connections;
-ALTER TABLE IF EXISTS user_connections RENAME COLUMN odoo_database_id TO tenant_id;
-
--- Update schema version
-INSERT INTO schema_version (version) VALUES (2);
+CREATE TABLE IF NOT EXISTS usage_daily (
+    id           BIGSERIAL PRIMARY KEY,
+    zitadel_sub  TEXT NOT NULL,
+    day          DATE NOT NULL,
+    call_count   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (zitadel_sub, day)
+);
 """
 
 
@@ -160,47 +132,16 @@ class DatabaseManager:
             self._pool = None
 
     async def _init_schema(self):
-        """Initialize database schema."""
+        """Initialize database schema (v3, no migrations)."""
         async with self._pool.acquire() as conn:
-            # Check current schema version
-            try:
-                row = await conn.fetchrow(
-                    "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
+            await conn.execute(SCHEMA_SQL)
+            row = await conn.fetchrow(
+                "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
+            )
+            if not row:
+                await conn.execute(
+                    "INSERT INTO schema_version (version) VALUES ($1)", SCHEMA_VERSION
                 )
-                current_version = row["version"] if row else 0
-            except Exception:
-                current_version = 0
-
-            if current_version == 0:
-                # Fresh install: create v3 schema directly
-                await conn.execute(SCHEMA_SQL)
-                row = await conn.fetchrow(
-                    "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1"
-                )
-                if not row:
-                    await conn.execute(
-                        "INSERT INTO schema_version (version) VALUES ($1)", SCHEMA_VERSION
-                    )
-            elif current_version < 2:
-                # Migrate from v1 to v2 first, then to v3
-                try:
-                    await conn.execute(MIGRATION_V1_TO_V2)
-                    logger.info("Migrated database schema from v1 to v2")
-                except Exception as e:
-                    logger.warning(f"Migration v1->v2 skipped (may already be done): {e}")
-                # Then migrate to v3
-                try:
-                    await conn.execute(MIGRATION_V2_TO_V3)
-                    logger.info("Migrated database schema from v2 to v3")
-                except Exception as e:
-                    logger.warning(f"Migration v2->v3 skipped (may already be done): {e}")
-            elif current_version < 3:
-                # Migrate from v2 to v3
-                try:
-                    await conn.execute(MIGRATION_V2_TO_V3)
-                    logger.info("Migrated database schema from v2 to v3")
-                except Exception as e:
-                    logger.warning(f"Migration v2->v3 skipped (may already be done): {e}")
 
         # Bootstrap admin if configured
         bootstrap_sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "").strip()
