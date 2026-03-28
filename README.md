@@ -28,15 +28,15 @@
 
 Odoo is powerful. AI is powerful. Together they're better.
 
-odoo-mcp-pro connects Claude AI to your Odoo ERP, so you can use natural language as an interface to your business data. Not to replace Odoo's UI -- but to give you a second interface that's faster for many tasks.
+odoo-mcp-pro connects your AI assistant to your Odoo ERP, so you can use natural language as an interface to your business data. Not to replace Odoo's UI -- but to give you a second interface that's faster for many tasks. Works with Claude, ChatGPT, Cursor, Windsurf, and any other MCP-compatible AI tool.
 
-> **"Show me all unpaid invoices over 5,000 EUR from Q4"** -- Claude queries your Odoo instance directly and returns the results.
+> **"Show me all unpaid invoices over 5,000 EUR from Q4"** -- your AI queries your Odoo instance directly and returns the results.
 
 <p align="center">
   <img src="docs/demo.gif" alt="Demo of odoo-mcp-pro" width="800"/>
 </p>
 
-**Use the interface that fits the task.** Complex configuration? Use the Odoo UI. Quick data lookup, bulk questions, or creating records on the fly? Just ask Claude.
+**Use the interface that fits the task.** Complex configuration? Use the Odoo UI. Quick data lookup, bulk questions, or creating records on the fly? Just ask your AI.
 
 ## What you can do
 
@@ -56,7 +56,7 @@ We run the server for you. No installation, no Docker, no infrastructure.
 
 1. **[Sign up at pantalytics.com](https://pantalytics.com/en/apps/odoo-mcp-server)**
 2. Log in and enter your Odoo URL + API key ([how to generate one](SETUP.md#generating-an-odoo-api-key))
-3. Add the MCP server to Claude.ai: **Settings > Integrations > Add MCP Server**
+3. Add the MCP server to your AI tool (Claude, ChatGPT, Cursor, etc.)
 4. Start asking questions
 
 Your data stays in Odoo -- the server is a stateless proxy. API keys are encrypted at rest.
@@ -69,7 +69,7 @@ See [SETUP.md](SETUP.md) for the deployment guide.
 
 ## How it works
 
-odoo-mcp-pro is an [MCP server](https://modelcontextprotocol.io) -- an open standard that lets AI assistants call external tools. It exposes 6 tools that Claude can call based on your questions:
+odoo-mcp-pro is an [MCP server](https://modelcontextprotocol.io) -- an open standard that lets AI assistants call external tools. It exposes 6 tools that your AI can call based on your questions:
 
 | Tool | What it does |
 |------|-------------|
@@ -86,7 +86,7 @@ odoo-mcp-pro is an [MCP server](https://modelcontextprotocol.io) -- an open stan
 
 - **Odoo is the boss.** All data, permissions, and business logic live in Odoo. Each user's API key determines what they can see and do -- ACLs and record rules apply as normal.
 - **Stateless proxy.** The MCP server doesn't store or cache your business data.
-- **API keys encrypted at rest** using AES-128 (Fernet). Never exposed to Claude, the browser, or logs.
+- **API keys encrypted at rest** using AES-128 (Fernet). Never exposed to the AI, the browser, or logs.
 - **You stay in control.** Revoke your API key in Odoo at any time to instantly cut off access.
 
 ## Development
