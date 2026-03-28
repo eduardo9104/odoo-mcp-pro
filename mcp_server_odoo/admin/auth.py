@@ -130,7 +130,7 @@ def require_login(func):
     async def wrapper(request: Request, *args, **kwargs):
         user = await get_current_user(request)
         if not user:
-            return RedirectResponse(url="/admin/login", status_code=302)
+            return RedirectResponse(url="/admin/login/start", status_code=302)
         # Inject user into request state for easy access
         request.state.user = user
         return await func(request, *args, **kwargs)
@@ -148,7 +148,7 @@ def require_admin(func):
     async def wrapper(request: Request, *args, **kwargs):
         admin = await get_current_admin(request)
         if not admin:
-            return RedirectResponse(url="/admin/login", status_code=302)
+            return RedirectResponse(url="/admin/login/start", status_code=302)
         # Inject admin into request state for easy access
         request.state.admin = admin
         return await func(request, *args, **kwargs)
