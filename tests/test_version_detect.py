@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_server_odoo.version_detect import JSON2_MIN_VERSION, detect_api_version
+from mcp_server_odoo.version_detect import JSON2_MIN_VERSION, _parse_major, detect_api_version
 
 
 class TestDetectApiVersion:
@@ -158,6 +158,67 @@ class TestDetectApiVersion:
             api_version, _ = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "xmlrpc"
+
+
+class TestParseMajor:
+    """Test _parse_major helper for various Odoo version formats."""
+
+    def test_integer_value(self):
+        assert _parse_major(19) == 19
+
+    def test_simple_string(self):
+        assert _parse_major("19") == 19
+
+    def test_saas_tilde_format(self):
+        """Odoo.sh SaaS versions like 'saas~19'."""
+        assert _parse_major("saas~19") == 19
+
+    def test_saas_tilde_with_minor(self):
+        """Full SaaS version string like 'saas~19.2+e'."""
+        assert _parse_major("saas~19.2+e") == 19
+
+    def test_dotted_string(self):
+        assert _parse_major("17.0") == 17
+
+    def test_raises_on_no_digits(self):
+        with pytest.raises(ValueError, match="Cannot parse major version"):
+            _parse_major("unknown")
+
+    def test_raises_on_empty_string(self):
+        with pytest.raises(ValueError, match="Cannot parse major version"):
+            _parse_major("")
+
+
+class TestDetectSaasVersions:
+    """Test detect_api_version with Odoo.sh SaaS version strings."""
+
+    def test_saas_19_detected_as_json2(self):
+        """Odoo.sh saas~19 should return json2."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "saas~19.2+e",
+            "server_version_info": ["saas~19", 2, 0, "final", 0, "e"],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://cg-folks.odoo.com")
+
+        assert api_version == "json2"
+        assert server_version == "saas~19.2+e"
+
+    def test_saas_17_detected_as_xmlrpc(self):
+        """Odoo.sh saas~17 should return xmlrpc."""
+        mock_proxy = MagicMock()
+        mock_proxy.version.return_value = {
+            "server_version": "saas~17.4",
+            "server_version_info": ["saas~17", 4, 0, "final", 0, ""],
+        }
+
+        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+            api_version, server_version = detect_api_version("https://example.odoo.com")
+
+        assert api_version == "xmlrpc"
+        assert server_version == "saas~17.4"
 
 
 class TestConfigAutoApiVersion:

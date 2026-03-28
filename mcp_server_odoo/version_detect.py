@@ -5,6 +5,7 @@ and returns the appropriate API version string.
 """
 
 import logging
+import re
 import xmlrpc.client
 from typing import Literal, Optional, Tuple
 
@@ -12,6 +13,22 @@ logger = logging.getLogger(__name__)
 
 # Minimum Odoo major version that supports JSON/2 API
 JSON2_MIN_VERSION = 19
+
+# Regex to extract the major version number from strings like "saas~19", "19", "19.0"
+_MAJOR_VERSION_RE = re.compile(r"(\d+)")
+
+
+def _parse_major(value) -> int:
+    """Extract major version number from version identifier.
+
+    Handles: 19 (int), "19", "19.0", "saas~19", "saas~19.2+e"
+    """
+    if isinstance(value, int):
+        return value
+    match = _MAJOR_VERSION_RE.search(str(value))
+    if match:
+        return int(match.group(1))
+    raise ValueError(f"Cannot parse major version from {value!r}")
 
 
 def detect_api_version(
@@ -48,11 +65,11 @@ def detect_api_version(
         server_version_info = version_info.get("server_version_info", [])
 
         # Parse major version from server_version_info [major, minor, micro, release, serial]
+        # Odoo.sh SaaS versions use strings like "saas~19" instead of int 19
         if server_version_info and len(server_version_info) >= 1:
-            major = int(server_version_info[0])
+            major = _parse_major(server_version_info[0])
         elif server_version:
-            # Fallback: parse from "19.0" string
-            major = int(server_version.split(".")[0])
+            major = _parse_major(server_version.split(".")[0])
         else:
             logger.warning("Could not parse Odoo version, falling back to xmlrpc")
             return "xmlrpc", None
