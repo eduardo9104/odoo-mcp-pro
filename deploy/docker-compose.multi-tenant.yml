@@ -15,6 +15,7 @@
 #   ZITADEL_CLIENT_ID=<Zitadel service user client ID>
 #   ZITADEL_CLIENT_SECRET=<Zitadel service user client secret>
 #   OAUTH_RESOURCE_SERVER_URL=https://mcp.example.com/mcp
+#   API_KEY_ENCRYPTION_KEY=<Fernet key for encrypting API keys at rest>
 #   POSTGRES_PASSWORD=<strong password>
 
 services:
@@ -64,6 +65,8 @@ services:
       ZITADEL_INTROSPECTION_URL: ${ZITADEL_INTROSPECTION_URL}
       ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID}
       ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET}
+      # Encryption
+      API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY}
       # Transport
       ODOO_MCP_TRANSPORT: streamable-http
       ODOO_MCP_HOST: "0.0.0.0"
