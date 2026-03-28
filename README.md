@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/Status-Free%20Beta-brightgreen.svg" alt="Free Beta"/>
 </p>
 
-> **Free Beta** -- odoo-mcp-pro is currently free during the beta period. [Sign up at pantalytics.com/odoo-mcp-pro](https://pantalytics.com/odoo-mcp-pro)
+> **Free Beta** -- odoo-mcp-pro is currently free during the beta period. [Sign up at pantalytics.com](https://pantalytics.com/en/apps/odoo-mcp-server)
 
 ---
 
@@ -54,7 +54,7 @@ Works with any Odoo model -- sales, invoices, contacts, inventory, CRM, HR, you 
 
 We run the server for you. No installation, no Docker, no infrastructure.
 
-1. **[Sign up at pantalytics.com/odoo-mcp-pro](https://pantalytics.com/odoo-mcp-pro)**
+1. **[Sign up at pantalytics.com](https://pantalytics.com/en/apps/odoo-mcp-server)**
 2. Log in and enter your Odoo URL + API key ([how to generate one](SETUP.md#generating-an-odoo-api-key))
 3. Add the MCP server to Claude.ai: **Settings > Integrations > Add MCP Server**
 4. Start asking questions
