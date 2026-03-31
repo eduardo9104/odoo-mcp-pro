@@ -27,7 +27,7 @@ class OdooConnection:
 
     This class provides connection management, health checking, and
     proper resource cleanup for Odoo XML-RPC connections. Uses standard
-    MCP endpoints for authentication and access control.
+    XML-RPC endpoints with API key authentication.
     """
 
     # Connection timeout in seconds

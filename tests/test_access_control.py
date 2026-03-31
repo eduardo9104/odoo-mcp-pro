@@ -1,13 +1,11 @@
-"""Tests for access control integration with Odoo MCP module.
+"""Tests for access control via Odoo's check_access_rights.
 
-This module tests the AccessController class and its integration with
-the Odoo MCP module's REST API endpoints.
+Tests the AccessController class which uses Odoo's native check_access_rights
+for both JSON/2 and XML-RPC connections.
 """
 
-import json
 import os
-import urllib.error
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +19,7 @@ from .conftest import ODOO_SERVER_AVAILABLE
 
 
 class TestAccessControl:
-    """Test access control functionality."""
+    """Test core access control functionality."""
 
     @pytest.fixture
     def config(self):
@@ -37,8 +35,8 @@ class TestAccessControl:
         """Create AccessController instance."""
         return AccessController(config, cache_ttl=60)
 
-    def test_init_without_api_key(self):
-        """Test initialization fails without API key."""
+    def test_init_without_connection_allows_all(self):
+        """Test initialization without connection delegates to Odoo."""
         config = OdooConfig(
             url=os.getenv("ODOO_URL", "http://localhost:8069"),
             username=os.getenv("ODOO_USER", "admin"),
@@ -46,54 +44,10 @@ class TestAccessControl:
             database=os.getenv("ODOO_DB"),
         )
 
-        with pytest.raises(AccessControlError, match="API key required"):
-            AccessController(config)
-
-    @patch("urllib.request.urlopen")
-    def test_make_request_success(self, mock_urlopen, controller):
-        """Test successful REST API request."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {"success": True, "data": {"test": "value"}}
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Make request
-        result = controller._make_request("/test/endpoint")
-
-        assert result["success"] is True
-        assert result["data"]["test"] == "value"
-
-    @patch("urllib.request.urlopen")
-    def test_make_request_api_error(self, mock_urlopen, controller):
-        """Test REST API request with API error response."""
-        # Mock error response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {"success": False, "error": {"message": "Test error"}}
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Should raise error
-        with pytest.raises(AccessControlError, match="API error: Test error"):
-            controller._make_request("/test/endpoint")
-
-    @patch("urllib.request.urlopen")
-    def test_make_request_http_401(self, mock_urlopen, controller):
-        """Test REST API request with 401 error."""
-        mock_urlopen.side_effect = urllib.error.HTTPError(None, 401, "Unauthorized", {}, None)
-
-        with pytest.raises(AccessControlError, match="Invalid API key"):
-            controller._make_request("/test/endpoint")
-
-    @patch("urllib.request.urlopen")
-    def test_make_request_http_404(self, mock_urlopen, controller):
-        """Test REST API request with 404 error."""
-        mock_urlopen.side_effect = urllib.error.HTTPError(None, 404, "Not Found", {}, None)
-
-        with pytest.raises(AccessControlError, match="Endpoint not found"):
-            controller._make_request("/test/endpoint")
+        ctrl = AccessController(config)
+        # Without connection, all operations are allowed (Odoo handles ACLs)
+        perms = ctrl.get_model_permissions("res.partner")
+        assert perms.can_read is True
 
     def test_cache_operations(self, controller):
         """Test cache get/set operations."""
@@ -117,243 +71,9 @@ class TestAccessControl:
         # Should be expired
         assert controller._get_from_cache("test_key") is None
 
-    @patch("urllib.request.urlopen")
-    def test_get_enabled_models(self, mock_urlopen, controller):
-        """Test getting enabled models list."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "models": [
-                        {"model": "res.partner", "name": "Contact"},
-                        {"model": "res.users", "name": "Users"},
-                    ]
-                },
-            }
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Get models
-        models = controller.get_enabled_models()
-
-        assert len(models) == 2
-        assert models[0]["model"] == "res.partner"
-        assert models[1]["name"] == "Users"
-
-        # Second call should use cache
-        models2 = controller.get_enabled_models()
-        assert models2 == models
-        mock_urlopen.assert_called_once()  # Only called once due to cache
-
-    @patch("urllib.request.urlopen")
-    def test_is_model_enabled(self, mock_urlopen, controller):
-        """Test checking if model is enabled."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "models": [
-                        {"model": "res.partner", "name": "Contact"},
-                        {"model": "res.users", "name": "Users"},
-                    ]
-                },
-            }
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Check models
-        assert controller.is_model_enabled("res.partner") is True
-        assert controller.is_model_enabled("res.users") is True
-        assert controller.is_model_enabled("account.move") is False
-
-    @patch("urllib.request.urlopen")
-    def test_get_model_permissions(self, mock_urlopen, controller):
-        """Test getting model permissions."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "model": "res.partner",
-                    "enabled": True,
-                    "operations": {"read": True, "write": True, "create": False, "unlink": False},
-                },
-            }
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Get permissions
-        perms = controller.get_model_permissions("res.partner")
-
-        assert perms.model == "res.partner"
-        assert perms.enabled is True
-        assert perms.can_read is True
-        assert perms.can_write is True
-        assert perms.can_create is False
-        assert perms.can_unlink is False
-
-        # Test can_perform method
-        assert perms.can_perform("read") is True
-        assert perms.can_perform("write") is True
-        assert perms.can_perform("create") is False
-        assert perms.can_perform("delete") is False  # Alias for unlink
-
-    @patch("urllib.request.urlopen")
-    def test_check_operation_allowed(self, mock_urlopen, controller):
-        """Test checking if operation is allowed."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "model": "res.partner",
-                    "enabled": True,
-                    "operations": {"read": True, "write": False, "create": False, "unlink": False},
-                },
-            }
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Check operations
-        allowed, msg = controller.check_operation_allowed("res.partner", "read")
-        assert allowed is True
-        assert msg is None
-
-        allowed, msg = controller.check_operation_allowed("res.partner", "write")
-        assert allowed is False
-        assert "Operation 'write' not allowed" in msg
-
-    @patch("urllib.request.urlopen")
-    def test_check_operation_model_disabled(self, mock_urlopen, controller):
-        """Test checking operation on disabled model."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {"success": True, "data": {"model": "res.partner", "enabled": False, "operations": {}}}
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Check operation
-        allowed, msg = controller.check_operation_allowed("res.partner", "read")
-        assert allowed is False
-        assert "not enabled for MCP access" in msg
-
-    @patch("urllib.request.urlopen")
-    def test_validate_model_access(self, mock_urlopen, controller):
-        """Test validate_model_access method."""
-        # Mock allowed response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {"model": "res.partner", "enabled": True, "operations": {"read": True}},
-            }
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Should not raise for allowed operation
-        controller.validate_model_access("res.partner", "read")
-
-        # Mock denied response
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {"model": "res.partner", "enabled": True, "operations": {"read": False}},
-            }
-        ).encode("utf-8")
-
-        # Clear cache to force new request
-        controller.clear_cache()
-
-        # Should raise for denied operation
-        with pytest.raises(AccessControlError):
-            controller.validate_model_access("res.partner", "read")
-
-    @patch("urllib.request.urlopen")
-    def test_filter_enabled_models(self, mock_urlopen, controller):
-        """Test filtering enabled models."""
-        # Mock response
-        mock_response = MagicMock()
-        mock_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "models": [
-                        {"model": "res.partner", "name": "Contact"},
-                        {"model": "res.users", "name": "Users"},
-                    ]
-                },
-            }
-        ).encode("utf-8")
-        mock_urlopen.return_value.__enter__.return_value = mock_response
-
-        # Filter models
-        models = ["res.partner", "account.move", "res.users", "stock.picking"]
-        filtered = controller.filter_enabled_models(models)
-
-        assert filtered == ["res.partner", "res.users"]
-
-    @patch("urllib.request.urlopen")
-    def test_get_all_permissions(self, mock_urlopen, controller):
-        """Test getting permissions for all models."""
-        # Mock models list response
-        models_response = MagicMock()
-        models_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "models": [
-                        {"model": "res.partner", "name": "Contact"},
-                        {"model": "res.users", "name": "Users"},
-                    ]
-                },
-            }
-        ).encode("utf-8")
-
-        # Mock permissions responses
-        partner_response = MagicMock()
-        partner_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "model": "res.partner",
-                    "enabled": True,
-                    "operations": {"read": True, "write": True},
-                },
-            }
-        ).encode("utf-8")
-
-        users_response = MagicMock()
-        users_response.read.return_value = json.dumps(
-            {
-                "success": True,
-                "data": {
-                    "model": "res.users",
-                    "enabled": True,
-                    "operations": {"read": True, "write": False},
-                },
-            }
-        ).encode("utf-8")
-
-        # Configure mock to return different responses
-        mock_urlopen.return_value.__enter__.side_effect = [
-            models_response,
-            partner_response,
-            users_response,
-        ]
-
-        # Get all permissions
-        all_perms = controller.get_all_permissions()
-
-        assert len(all_perms) == 2
-        assert all_perms["res.partner"].can_write is True
-        assert all_perms["res.users"].can_write is False
+    def test_get_enabled_models_returns_empty(self, controller):
+        """All models are accessible — Odoo handles ACLs."""
+        assert controller.get_enabled_models() == []
 
 
 @pytest.mark.skipif(not ODOO_SERVER_AVAILABLE, reason="Odoo server not available")

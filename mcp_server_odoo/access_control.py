@@ -1,13 +1,11 @@
-"""Access control integration with Odoo MCP module.
+"""Access control for Odoo MCP Server.
 
-This module provides integration with the Odoo MCP module's access control
-system via REST API endpoints.
+Uses Odoo's native check_access_rights to verify permissions.
+Works with both JSON/2 (Odoo 19+) and XML-RPC (Odoo 14-18).
+No additional Odoo modules required.
 """
 
-import json
 import logging
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -59,23 +57,23 @@ class CacheEntry:
 
 
 class AccessController:
-    """Controls access to Odoo models via MCP module REST API."""
+    """Controls access to Odoo models via Odoo's native check_access_rights.
+
+    Works with both JSON/2 (Odoo 19+) and XML-RPC (Odoo 14-18) connections.
+    No additional Odoo modules required.
+    """
 
     # Cache TTL in seconds
     CACHE_TTL = 300  # 5 minutes
-
-    # MCP REST API endpoints
-    MODELS_ENDPOINT = "/mcp/models"
-    MODEL_ACCESS_ENDPOINT = "/mcp/models/{model}/access"
 
     def __init__(self, config: OdooConfig, connection: Any = None, cache_ttl: int = CACHE_TTL):
         """Initialize access controller.
 
         Args:
-            config: OdooConfig with connection details and API key
-            connection: Optional OdooJSON2Connection — used to fetch real Odoo
-                        permissions in JSON/2 mode. When provided, model access
-                        reflects the API key user's actual Odoo ACLs.
+            config: OdooConfig with connection details
+            connection: Odoo connection (JSON/2 or XML-RPC) used to check
+                        permissions via check_access_rights. When provided,
+                        model access reflects the user's actual Odoo ACLs.
             cache_ttl: Cache time-to-live in seconds
         """
         self.config = config
@@ -83,80 +81,13 @@ class AccessController:
         self.cache_ttl = cache_ttl
         self._cache: Dict[str, CacheEntry] = {}
 
-        # Parse base URL
-        self.base_url = config.url.rstrip("/")
-
-        # In JSON/2 mode, permissions are fetched lazily from Odoo
-        if config.api_version == "json2":
-            if connection is not None:
-                logger.info(
-                    "JSON/2 mode: Permissions will be fetched from Odoo (ir.model.access) "
-                    "and cached for %d seconds.",
-                    cache_ttl,
-                )
-            else:
-                logger.info(
-                    "JSON/2 mode: No connection provided — access control delegated to "
-                    "Odoo server (403 on denied operations)."
-                )
-            return  # No client-side access control needed
-
-        # Validate API key is available for standard mode
-        if not config.api_key:
-            raise AccessControlError(
-                "API key required for access control. Please configure ODOO_API_KEY."
+        if connection is not None:
+            logger.info(
+                "Access control via check_access_rights, cached for %d seconds.",
+                cache_ttl,
             )
-
-        logger.info(f"Initialized AccessController for {self.base_url}")
-
-    def _make_request(self, endpoint: str, timeout: int = 30) -> Dict[str, Any]:
-        """Make authenticated request to MCP REST API.
-
-        Args:
-            endpoint: API endpoint path
-            timeout: Request timeout in seconds
-
-        Returns:
-            Parsed JSON response
-
-        Raises:
-            AccessControlError: If request fails
-        """
-        url = f"{self.base_url}{endpoint}"
-
-        # Create request with API key header
-        req = urllib.request.Request(url)
-        req.add_header("X-API-Key", self.config.api_key)
-        req.add_header("Accept", "application/json")
-
-        try:
-            logger.debug(f"Making request to {url}")
-
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                data = json.loads(response.read().decode("utf-8"))
-
-                # Check for API response success
-                if not data.get("success", False):
-                    error_msg = data.get("error", {}).get("message", "Unknown error")
-                    raise AccessControlError(f"API error: {error_msg}")
-
-                return data
-
-        except urllib.error.HTTPError as e:
-            if e.code == 401:
-                raise AccessControlError("Invalid API key for access control") from e
-            elif e.code == 403:
-                raise AccessControlError("Access denied to MCP endpoints") from e
-            elif e.code == 404:
-                raise AccessControlError(f"Endpoint not found: {endpoint}") from e
-            else:
-                raise AccessControlError(f"HTTP error {e.code}: {e.reason}") from e
-        except urllib.error.URLError as e:
-            raise AccessControlError(f"Connection error: {e.reason}") from e
-        except json.JSONDecodeError as e:
-            raise AccessControlError(f"Invalid JSON response: {e}") from e
-        except Exception as e:
-            raise AccessControlError(f"Request failed: {e}") from e
+        else:
+            logger.info("No connection — access control delegated to Odoo server.")
 
     def _get_from_cache(self, key: str) -> Optional[Any]:
         """Get value from cache if not expired."""
@@ -234,27 +165,9 @@ class AccessController:
         Raises:
             AccessControlError: If request fails
         """
-        # When we have a connection, all models are accessible (Odoo handles ACLs)
-        if self.connection is not None:
-            logger.debug("Connection available: All models are accessible (Odoo ACLs apply)")
-            return []
-
-        cache_key = "enabled_models"
-
-        # Check cache
-        cached = self._get_from_cache(cache_key)
-        if cached is not None:
-            return cached
-
-        # Make request to MCP module endpoint (only works with ivnvxd module)
-        response = self._make_request(self.MODELS_ENDPOINT)
-        models = response.get("data", {}).get("models", [])
-
-        # Cache result
-        self._set_cache(cache_key, models)
-
-        logger.info(f"Retrieved {len(models)} enabled models")
-        return models
+        # All models are accessible — Odoo's own ACLs enforce permissions
+        # per user via check_access_rights at the operation level.
+        return []
 
     def is_model_enabled(self, model: str) -> bool:
         """Check if a model is MCP-enabled.
@@ -265,16 +178,7 @@ class AccessController:
         Returns:
             True if model is enabled, False otherwise
         """
-        # Use check_access_rights via connection (works for both JSON/2 and XML-RPC)
-        if self.config.api_version in ("json2", "xmlrpc"):
-            return self._get_connection_model_permissions(model).enabled
-
-        try:
-            enabled_models = self.get_enabled_models()
-            return any(m["model"] == model for m in enabled_models)
-        except AccessControlError as e:
-            logger.error(f"Failed to check if model {model} is enabled: {e}")
-            return False
+        return self._get_connection_model_permissions(model).enabled
 
     def get_model_permissions(self, model: str) -> ModelPermissions:
         """Get permissions for a specific model.
@@ -288,38 +192,7 @@ class AccessController:
         Raises:
             AccessControlError: If request fails
         """
-        # Use check_access_rights via connection (works for both JSON/2 and XML-RPC)
-        # Falls back to allow-all if no connection (delegating to Odoo itself)
-        if self.config.api_version in ("json2", "xmlrpc"):
-            return self._get_connection_model_permissions(model)
-
-        cache_key = f"permissions_{model}"
-
-        # Check cache
-        cached = self._get_from_cache(cache_key)
-        if cached is not None:
-            return cached
-
-        # Make request
-        endpoint = self.MODEL_ACCESS_ENDPOINT.format(model=model)
-        response = self._make_request(endpoint)
-        data = response.get("data", {})
-
-        # Parse permissions
-        permissions = ModelPermissions(
-            model=data.get("model", model),
-            enabled=data.get("enabled", False),
-            can_read=data.get("operations", {}).get("read", False),
-            can_write=data.get("operations", {}).get("write", False),
-            can_create=data.get("operations", {}).get("create", False),
-            can_unlink=data.get("operations", {}).get("unlink", False),
-        )
-
-        # Cache result
-        self._set_cache(cache_key, permissions)
-
-        logger.debug(f"Retrieved permissions for {model}: {permissions}")
-        return permissions
+        return self._get_connection_model_permissions(model)
 
     def check_operation_allowed(self, model: str, operation: str) -> Tuple[bool, Optional[str]]:
         """Check if an operation is allowed on a model.
@@ -331,30 +204,10 @@ class AccessController:
         Returns:
             Tuple of (allowed, error_message)
         """
-        # Use check_access_rights via connection (works for both JSON/2 and XML-RPC)
-        if self.config.api_version in ("json2", "xmlrpc"):
-            permissions = self._get_connection_model_permissions(model)
-            if not permissions.can_perform(operation):
-                return False, f"Operation '{operation}' not allowed on model '{model}'"
-            return True, None
-
-        try:
-            # Standard mode: Get model permissions from MCP module
-            permissions = self.get_model_permissions(model)
-
-            # Check if model is enabled
-            if not permissions.enabled:
-                return False, f"Model '{model}' is not enabled for MCP access"
-
-            # Check specific operation
-            if not permissions.can_perform(operation):
-                return False, f"Operation '{operation}' not allowed on model '{model}'"
-
-            return True, None
-
-        except AccessControlError as e:
-            logger.error(f"Access control check failed: {e}")
-            return False, str(e)
+        permissions = self._get_connection_model_permissions(model)
+        if not permissions.can_perform(operation):
+            return False, f"Operation '{operation}' not allowed on model '{model}'"
+        return True, None
 
     def validate_model_access(self, model: str, operation: str) -> None:
         """Validate model access, raising exception if denied.
