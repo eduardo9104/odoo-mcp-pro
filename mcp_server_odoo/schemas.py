@@ -190,3 +190,7 @@ class ServerInfoResult(BaseModel):
     odoo_url: str = Field(description="Connected Odoo instance URL")
     connected: bool = Field(description="Whether the server is connected to Odoo")
     runtime_id: str = Field(description="Server runtime identifier")
+    companies: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Available companies in the Odoo instance (id and name). Use company_id in search domains to filter by company.",
+    )

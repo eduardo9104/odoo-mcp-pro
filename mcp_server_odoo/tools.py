@@ -234,7 +234,7 @@ class OdooToolHandler:
             True if field should be included in default response
         """
         # Always include essential fields
-        always_include = {"id", "name", "display_name", "active"}
+        always_include = {"id", "name", "display_name", "active", "company_id"}
         if field_name in always_include:
             return True
 
@@ -631,6 +631,16 @@ class OdooToolHandler:
                 api_version = self.config.api_version if self.config else "unknown"
                 odoo_url = "not connected"
 
+            # Fetch companies for context (helps with multi-company setups)
+            companies = []
+            if is_connected:
+                try:
+                    companies = connection.search_read(
+                        "res.company", [], fields=["id", "name"], limit=10
+                    )
+                except Exception:
+                    pass
+
             self._track_usage(_current_sub.get(), "server_info")
             return ServerInfoResult(
                 version=SERVER_VERSION,
@@ -639,6 +649,7 @@ class OdooToolHandler:
                 odoo_url=odoo_url,
                 connected=is_connected,
                 runtime_id=_BUILD_ORIGIN,
+                companies=companies,
             )
 
         @self.app.tool(
