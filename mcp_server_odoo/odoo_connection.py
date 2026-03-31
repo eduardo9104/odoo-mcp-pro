@@ -628,7 +628,13 @@ class OdooConnection:
         if not self.config.api_key:
             return False
 
-        return self._authenticate_api_key_mcp(database)
+        # Try MCP module endpoint first, then standard XML-RPC with API key as password
+        try:
+            if self._authenticate_api_key_mcp(database):
+                return True
+        except OdooConnectionError:
+            logger.info("MCP module auth failed, trying standard XML-RPC API key auth")
+        return self._authenticate_api_key_standard(database)
 
     def _authenticate_password(self, database: str) -> bool:
         """Authenticate using username and password.

@@ -169,10 +169,10 @@ class TestAuthentication:
         # Authenticate - should fallback to password
         conn.authenticate("mcp")
 
-        # Verify authenticated with password
+        # Verify authenticated (via standard XML-RPC API key fallback)
         assert conn.is_authenticated
         assert conn.uid == 3
-        assert conn.auth_method == "password"
+        assert conn.auth_method == "api_key"
 
     def test_authenticate_with_auto_database(self, connection_api_key):
         """Test authentication with automatic database selection."""
