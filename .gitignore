@@ -67,3 +67,4 @@ deploy/instances.yml
 deploy/generated/
 deploy/machinekey/
 deploy/.env.local-test
+.local/

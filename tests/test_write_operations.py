@@ -24,9 +24,9 @@ class TestWriteOperations:
         config.uses_api_key = False
         config.uses_credentials = True
         config.get_endpoint_paths.return_value = {
-            "db": "/mcp/xmlrpc/db",
-            "common": "/mcp/xmlrpc/common",
-            "object": "/mcp/xmlrpc/object",
+            "db": "/xmlrpc/2/db",
+            "common": "/xmlrpc/2/common",
+            "object": "/xmlrpc/2/object",
         }
         return config
 

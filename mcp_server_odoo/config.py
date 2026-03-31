@@ -112,9 +112,9 @@ class OdooConfig:
             Dict[str, str]: Mapping of endpoint names to paths
         """
         return {
-            "db": "/mcp/xmlrpc/db",
-            "common": "/mcp/xmlrpc/common",
-            "object": "/mcp/xmlrpc/object",
+            "db": "/xmlrpc/2/db",
+            "common": "/xmlrpc/2/common",
+            "object": "/xmlrpc/2/object",
         }
 
     @classmethod

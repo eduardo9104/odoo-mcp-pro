@@ -304,9 +304,9 @@ class TestAuthenticationRouting:
         conn = OdooConnection(config)
 
         # Check that MCP endpoints are used
-        assert conn.DB_ENDPOINT == "/mcp/xmlrpc/db"
-        assert conn.COMMON_ENDPOINT == "/mcp/xmlrpc/common"
-        assert conn.OBJECT_ENDPOINT == "/mcp/xmlrpc/object"
+        assert conn.DB_ENDPOINT == "/xmlrpc/2/db"
+        assert conn.COMMON_ENDPOINT == "/xmlrpc/2/common"
+        assert conn.OBJECT_ENDPOINT == "/xmlrpc/2/object"
 
     def test_authentication_routing_standard_mode(self):
         """Test that standard mode routes to MCP authentication."""
