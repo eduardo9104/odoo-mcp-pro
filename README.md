@@ -105,6 +105,29 @@ See [architecture.md](architecture.md) for technical details and [CLAUDE.md](CLA
 
 Contributions are welcome. Fork the repo, create a feature branch, run `pytest tests/` and `ruff check .`, then open a PR.
 
+## FAQ
+
+**Which Odoo versions are supported?**
+Odoo 14-19+. The server auto-detects whether to use JSON/2 (Odoo 19+) or XML-RPC (14-18). No configuration needed.
+
+**Does it work on my phone?**
+Yes -- the hosted version works on Claude mobile (iOS/Android), Claude.ai in any browser, Claude Desktop, Claude Code, and ChatGPT. Local installs (STDIO) only work on the machine where they're installed.
+
+**Is my data safe?**
+Your data stays in Odoo. The MCP server is a stateless proxy -- it doesn't store or cache business data. API keys are encrypted at rest with AES-128 (Fernet). Each user's Odoo permissions apply: you can only see and do what your Odoo role allows.
+
+**I get "Access denied" on all models**
+This usually means your Odoo API key doesn't have the right permissions. Try:
+1. **Regenerate your API key** in Odoo (Settings > Users > API Keys) and update it in `/admin/setup`
+2. Make sure your Odoo user has at least read access to the models you want to query
+3. If you're on Odoo.sh, verify your subscription plan supports the JSON/2 API
+
+**I get "Authentication required" or "invalid_token"**
+This means the OAuth connection between your AI tool and the MCP server failed. Try disconnecting and reconnecting the MCP server in your AI tool's settings.
+
+**Do I need to set ODOO_DB?**
+Only if you self-host Odoo with multiple databases. Odoo.sh and Odoo Online don't need it -- the hostname determines the database.
+
 ## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) -- free for personal and noncommercial use. Commercial use requires a separate license from [Pantalytics](https://pantalytics.com).
