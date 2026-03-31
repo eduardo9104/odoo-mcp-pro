@@ -22,6 +22,10 @@
 
 > **Free Beta** -- odoo-mcp-pro is currently free during the beta period. [Sign up at pantalytics.com](https://pantalytics.com/en/apps/odoo-mcp-server)
 
+<p align="center">
+  <img src="docs/ai-grid@2x.png" alt="Odoo connected to Claude, OpenAI, Gemini, Copilot, Mistral via MCP" width="500"/>
+</p>
+
 ---
 
 ## The idea
