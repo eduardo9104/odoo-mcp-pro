@@ -1046,6 +1046,24 @@ class OdooConnection:
             logger.error(f"Failed to delete {model} records: {e}")
             raise
 
+    def check_access_rights(self, model: str, operation: str) -> bool:
+        """Check if the current user has the given access right on a model.
+
+        Args:
+            model: Odoo model name (e.g., 'res.partner')
+            operation: One of 'read', 'write', 'create', 'unlink'
+
+        Returns:
+            True if access is granted, False if denied or on error
+        """
+        try:
+            result = self.execute_kw(
+                model, "check_access_rights", [operation], {"raise_exception": False}
+            )
+            return bool(result)
+        except Exception:
+            return False
+
     def get_server_version(self) -> Optional[Dict[str, Any]]:
         """Get Odoo server version information.
 

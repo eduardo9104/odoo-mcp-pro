@@ -180,7 +180,7 @@ class AccessController:
         self._cache.clear()
         logger.info("Cleared access control cache")
 
-    def _get_json2_model_permissions(self, model: str) -> "ModelPermissions":
+    def _get_connection_model_permissions(self, model: str) -> "ModelPermissions":
         """Fetch permissions for a single model via Odoo's check_access_rights.
 
         Works for all users — no special admin rights required.
@@ -234,9 +234,9 @@ class AccessController:
         Raises:
             AccessControlError: If request fails
         """
-        # In JSON/2 mode, all models are accessible (Odoo handles ACLs)
-        if self.config.api_version == "json2":
-            logger.debug("JSON/2 mode: All models are accessible")
+        # When we have a connection, all models are accessible (Odoo handles ACLs)
+        if self.connection is not None:
+            logger.debug("Connection available: All models are accessible (Odoo ACLs apply)")
             return []
 
         cache_key = "enabled_models"
@@ -246,7 +246,7 @@ class AccessController:
         if cached is not None:
             return cached
 
-        # Make request
+        # Make request to MCP module endpoint (only works with ivnvxd module)
         response = self._make_request(self.MODELS_ENDPOINT)
         models = response.get("data", {}).get("models", [])
 
@@ -265,9 +265,9 @@ class AccessController:
         Returns:
             True if model is enabled, False otherwise
         """
-        # In JSON/2 mode, delegate to get_model_permissions
-        if self.config.api_version == "json2":
-            return self._get_json2_model_permissions(model).enabled
+        # Use check_access_rights via connection (works for both JSON/2 and XML-RPC)
+        if self.config.api_version in ("json2", "xmlrpc"):
+            return self._get_connection_model_permissions(model).enabled
 
         try:
             enabled_models = self.get_enabled_models()
@@ -288,9 +288,10 @@ class AccessController:
         Raises:
             AccessControlError: If request fails
         """
-        # In JSON/2 mode: use Odoo's check_access_rights (works for all users)
-        if self.config.api_version == "json2":
-            return self._get_json2_model_permissions(model)
+        # Use check_access_rights via connection (works for both JSON/2 and XML-RPC)
+        # Falls back to allow-all if no connection (delegating to Odoo itself)
+        if self.config.api_version in ("json2", "xmlrpc"):
+            return self._get_connection_model_permissions(model)
 
         cache_key = f"permissions_{model}"
 
@@ -330,15 +331,15 @@ class AccessController:
         Returns:
             Tuple of (allowed, error_message)
         """
-        # In JSON/2 mode, check real Odoo permissions via check_access_rights
-        if self.config.api_version == "json2":
-            permissions = self._get_json2_model_permissions(model)
+        # Use check_access_rights via connection (works for both JSON/2 and XML-RPC)
+        if self.config.api_version in ("json2", "xmlrpc"):
+            permissions = self._get_connection_model_permissions(model)
             if not permissions.can_perform(operation):
                 return False, f"Operation '{operation}' not allowed on model '{model}'"
             return True, None
 
         try:
-            # Standard mode: Get model permissions from MCP
+            # Standard mode: Get model permissions from MCP module
             permissions = self.get_model_permissions(model)
 
             # Check if model is enabled
@@ -380,7 +381,7 @@ class AccessController:
         """
         # In JSON/2 mode, filter to models where user has at least read access
         if self.config.api_version == "json2":
-            return [m for m in models if self._get_json2_model_permissions(m).can_read]
+            return [m for m in models if self._get_connection_model_permissions(m).can_read]
 
         try:
             enabled_models = self.get_enabled_models()
