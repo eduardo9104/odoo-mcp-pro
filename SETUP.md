@@ -1,35 +1,56 @@
 # Setup Guide -- odoo-mcp-pro
 
-Step-by-step guide to deploy and configure odoo-mcp-pro.
-
 ## Choose your path
 
 | You want | Setup | Time |
 |----------|-------|------|
-| Personal use (Claude Code / Desktop) | [Local setup](#local-setup) | 5 min |
-| Multi-tenant SaaS (Claude.ai, team access) | [Multi-tenant deployment](#multi-tenant-deployment) | 1-2 hrs |
+| Use it now, no install | [Hosted (recommended)](#hosted-recommended) | 2 min |
+| Run locally with Claude Code / Desktop | [Local setup](#local-setup) | 5 min |
+| Deploy your own multi-tenant server | [Self-hosted deployment](#self-hosted-deployment) | 1-2 hrs |
+
+---
+
+## Hosted (recommended)
+
+We run the server for you. Works on your phone, laptop, and any browser.
+
+1. **Sign up** at [pantalytics.com/en/apps/odoo-mcp-server](https://pantalytics.com/en/apps/odoo-mcp-server)
+2. Log in and enter your **Odoo URL** + **API key** ([how to generate one](#generating-an-odoo-api-key))
+3. Connect your AI tool to `https://mcp.pantalytics.com/mcp/`
+4. Start asking questions
+
+Works with Claude (mobile, desktop, web, Code), ChatGPT, and any MCP-compatible tool. Supports Odoo 14-19+. Free during beta.
 
 ---
 
 ## Local setup
 
-Run locally without Postgres or Zitadel. For personal use with Claude Code or Claude Desktop.
+Run locally without Postgres or Zitadel. For personal use with Claude Code or Claude Desktop. Supports Odoo 14-19+ (the server auto-detects JSON/2 for Odoo 19+ or XML-RPC for older versions).
 
 ### Prerequisites
 
 - Python 3.10+
-- Odoo 19+ instance with an [API key](#generating-an-odoo-api-key)
+- Odoo 14+ instance with an [API key](#generating-an-odoo-api-key)
+
+### Install
+
+```bash
+git clone https://github.com/pantalytics/odoo-mcp-pro.git
+cd odoo-mcp-pro
+uv venv --python 3.10 && source .venv/bin/activate
+uv pip install -e .
+```
 
 ### Claude Code
 
 ```bash
 claude mcp add -s user \
   -e ODOO_URL=https://your-odoo.com \
-  -e ODOO_DB=your_database \
   -e ODOO_API_KEY=your_api_key \
-  -e ODOO_API_VERSION=json2 \
   -- odoo python -m mcp_server_odoo
 ```
+
+Note: `ODOO_DB` is only needed for self-hosted Odoo with multiple databases. Odoo.sh and Odoo Online don't need it.
 
 ### Claude Desktop
 
@@ -44,70 +65,58 @@ Add to `claude_desktop_config.json`:
       "cwd": "/path/to/odoo-mcp-pro",
       "env": {
         "ODOO_URL": "https://your-odoo.com",
-        "ODOO_DB": "your_database",
-        "ODOO_API_KEY": "your_api_key",
-        "ODOO_API_VERSION": "json2"
+        "ODOO_API_KEY": "your_api_key"
       }
     }
   }
 }
 ```
 
-### From source
+### Verify it works
 
-```bash
-git clone https://github.com/pantalytics/odoo-mcp-pro.git
-cd odoo-mcp-pro
-uv venv --python 3.10 && source .venv/bin/activate
-uv pip install -e ".[dev]"
-cp .env.example .env   # edit with your Odoo credentials
-python -m mcp_server_odoo
-```
+Ask Claude: *"List the models available in Odoo"* or *"Search for contacts in res.partner"*.
 
 ---
 
-## Multi-tenant deployment
+## Self-hosted deployment
 
-Deploy as a managed SaaS: one MCP server serving multiple customers via Claude.ai.
+Deploy your own multi-tenant MCP server with Docker Compose, Postgres, Zitadel, and Caddy. Users sign up and manage their own Odoo connections via a self-service admin panel.
 
 ### Architecture
 
 ```
-Claude.ai -> OAuth 2.1 -> Caddy (TLS) -> MCP Server -> Odoo (customer)
-                                             |
-                                         Postgres
-                                             |
-                                         Zitadel Cloud
+AI tool -> OAuth 2.1 -> Caddy (TLS) -> MCP Server -> Odoo (per user)
+                                           |
+                                       Postgres (user connections, usage tracking)
+                                           |
+                                       Zitadel Cloud (identity)
 ```
 
 ### Prerequisites
 
 - A VPS (Hetzner CX22 or similar, ~4.50 EUR/month)
-- A domain with DNS access (two subdomains: `mcp.example.com`, `admin.example.com`)
+- A domain with DNS access (one subdomain, e.g., `mcp.example.com`)
 - A [Zitadel Cloud](https://zitadel.cloud) account
 - Docker and Docker Compose on the VPS
 
 ### 1. Zitadel Cloud setup
 
-1. Create a Zitadel Cloud instance at https://zitadel.cloud
-2. Create a project (e.g., "MCP Server")
-3. Create two applications in the project:
+Create a Zitadel Cloud instance and set up two applications:
 
-**App 1: OIDC Web Application** (for Claude.ai and admin panel login)
+**App 1: OIDC Web Application** (for user login + Claude.ai auth)
 - Type: Web (OIDC)
 - Auth method: PKCE (no client secret)
 - Redirect URIs:
   - `https://claude.ai/api/mcp/auth_callback`
   - `https://mcp.example.com/admin/callback`
-- Note the **Client ID** -- this is the `MCP_OIDC_CLIENT_ID` that users enter in Claude.ai's Advanced settings
+- Note the **Client ID** -- you'll need it for both `MCP_OIDC_CLIENT_ID` and `ADMIN_OAUTH_CLIENT_ID`
 
-**App 2: API Application** (for token introspection)
+**App 2: API Application** (for server-side token introspection)
 - Type: API
 - Auth method: Basic (client_id + client_secret)
-- Note the **Client ID** and **Client Secret**
+- Note the **Client ID** (`ZITADEL_CLIENT_ID`) and **Client Secret** (`ZITADEL_CLIENT_SECRET`)
 
-4. Create an organization for each customer (e.g., "Acme Corp")
-5. Note the organization ID (visible in Zitadel console URL)
+Enable self-registration in Login Settings so users can create their own accounts.
 
 ### 2. Server setup
 
@@ -130,44 +139,38 @@ cp .env.example .env
 nano .env
 ```
 
-Required env vars:
+Fill in all values. See [Environment variables](#environment-variables) for the full reference.
+
+Generate an encryption key for API keys at rest:
 
 ```bash
-# Postgres
-POSTGRES_PASSWORD=<strong random password>
-
-# Admin panel
-ADMIN_SESSION_SECRET=<random 32+ char string>
-ADMIN_OAUTH_CLIENT_ID=<Zitadel OIDC app client ID>
-ADMIN_BASE_URL=https://mcp.example.com
-ADMIN_BOOTSTRAP_SUB=<your Zitadel subject ID>
-ADMIN_BOOTSTRAP_EMAIL=<your email>
-
-# OAuth (MCP endpoint)
-OAUTH_ISSUER_URL=https://your-instance.zitadel.cloud
-OAUTH_RESOURCE_SERVER_URL=https://mcp.example.com/mcp
-MCP_OIDC_CLIENT_ID=<OIDC app client ID from App 1>
-ZITADEL_INTROSPECTION_URL=https://your-instance.zitadel.cloud/oauth/v2/introspect
-ZITADEL_CLIENT_ID=<API app client ID>
-ZITADEL_CLIENT_SECRET=<API app client secret>
+python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
 ```
 
 ### 4. Configure Caddy
 
-Create `deploy/Caddyfile.multi-tenant`:
+Edit `deploy/Caddyfile.multi-tenant` -- the file is pre-configured, but you need to update the `ZITADEL_HOST` env var to match your Zitadel instance hostname (e.g., `your-instance.zitadel.cloud`). Set this in your `.env` file:
 
-```
-mcp.example.com {
-    handle /admin/* {
-        reverse_proxy mcp-server:8000
-    }
-    handle {
-        reverse_proxy mcp-server:8000
-    }
-}
+```bash
+ZITADEL_HOST=your-instance.zitadel.cloud
 ```
 
-### 5. Deploy
+The Caddyfile handles:
+- TLS termination (automatic via Let's Encrypt)
+- Admin panel at `/admin/*`
+- MCP endpoint at `/mcp`
+- OAuth proxy routes (`/authorize`, `/token`, `/oauth/v2/*`) -- these are needed because Claude.ai sends auth requests relative to the server root
+- DCR endpoint at `/register` -- allows Claude.ai to auto-configure without manual client ID entry
+
+### 5. DNS
+
+Add one A record pointing to your VPS:
+
+| Type | Name | Value |
+|------|------|-------|
+| A | `mcp` | `<VPS IP>` |
+
+### 6. Deploy
 
 ```bash
 cd /opt/odoo-mcp-pro/deploy
@@ -175,41 +178,95 @@ docker compose -f docker-compose.multi-tenant.yml up -d --build
 ```
 
 Verify:
-- `curl -s https://mcp.example.com/mcp/` returns 401 (OAuth protecting -- correct)
-- `https://mcp.example.com/admin/login` shows the login page
+- `curl -s https://mcp.example.com/mcp` returns 401 (OAuth protecting the endpoint -- correct)
+- `https://mcp.example.com/admin/setup` redirects to Zitadel login
 
-### 6. DNS
+### 7. Bootstrap admin
 
-Add A records pointing to your VPS IP:
+The first admin is created automatically from env vars:
+- `ADMIN_BOOTSTRAP_SUB` -- your Zitadel subject ID (find it in Zitadel Console > Users)
+- `ADMIN_BOOTSTRAP_EMAIL` -- your email
 
-| Type | Name | Value |
-|------|------|-------|
-| A | `mcp` | `<VPS IP>` |
+After first login at `/admin/setup`, you'll see the admin panel.
 
 ---
 
-## Onboarding a new customer
+## User onboarding (self-service)
 
-1. **Create Zitadel organization**: In Zitadel Cloud console, create an org for the customer. Note the org ID.
+Users manage their own connections. No admin action needed.
 
-2. **Create tenant**: Log in to `/admin/`, click "Add Tenant":
-   - Name: customer name
-   - Odoo URL: customer's Odoo instance URL
-   - Zitadel Org ID: the org ID from step 1
+1. User visits `https://mcp.example.com/admin/setup`
+2. Redirected to Zitadel to log in or create an account
+3. Enters their **Odoo URL** and **API key**
+4. Connects their AI tool to `https://mcp.example.com/mcp/`
 
-3. **Create Zitadel users**: Add users to the customer's org in Zitadel (or enable Microsoft Entra ID federation for SSO).
+That's it. Each user's API key is encrypted at rest. Their Odoo permissions apply -- they can only see and do what their Odoo role allows.
 
-4. **Share setup link**: Send users to `https://mcp.example.com/admin/setup`. They:
-   - Log in with their company account
-   - Enter their Odoo API key
-   - Get instructions for connecting Claude.ai
+---
 
-5. **Connect Claude.ai**: Users add the MCP server in Claude.ai:
-   - Settings > Integrations > Add MCP Server
-   - URL: `https://mcp.example.com/mcp/`
-   - Click **Advanced** and enter the **Client ID** (the `MCP_OIDC_CLIENT_ID` from the OIDC app in Zitadel). Claude.ai does not support dynamic client registration, so this must be entered manually.
+## Environment variables
 
-> **Note**: Claude.ai can only have one active Odoo connector per browser session, because Zitadel reuses the existing session. Super admins who need to access multiple orgs should use separate Zitadel accounts per org.
+### Odoo connection (local/single-tenant mode only)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ODOO_URL` | Yes* | -- | Odoo server URL (e.g., `https://mycompany.odoo.com`) |
+| `ODOO_API_KEY` | Yes* | -- | Odoo API key (preferred over password) |
+| `ODOO_USER` | -- | -- | Odoo username (fallback if no API key) |
+| `ODOO_PASSWORD` | -- | -- | Odoo password (required with username) |
+| `ODOO_DB` | No | auto | Database name (only needed for self-hosted multi-db) |
+
+*Not needed in multi-tenant mode (`DATABASE_URL` set).
+
+### MCP server
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ODOO_MCP_TRANSPORT` | No | `stdio` | `stdio` or `streamable-http` |
+| `ODOO_MCP_HOST` | No | `localhost` | Bind address for HTTP mode |
+| `ODOO_MCP_PORT` | No | `8000` | Port for HTTP mode |
+| `ODOO_MCP_LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `ODOO_MCP_DEFAULT_LIMIT` | No | `10` | Default search result limit |
+| `ODOO_MCP_MAX_LIMIT` | No | `100` | Maximum search result limit |
+| `ODOO_MCP_MAX_SMART_FIELDS` | No | `15` | Max fields in smart selection |
+
+### Multi-tenant mode
+
+Setting `DATABASE_URL` enables multi-tenant mode: Postgres-backed user connections, admin panel, usage tracking. Odoo connection env vars are ignored.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | Yes | -- | Postgres connection string |
+| `API_KEY_ENCRYPTION_KEY` | Yes | -- | Fernet key for encrypting API keys at rest |
+
+### Admin panel
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ADMIN_SESSION_SECRET` | Yes | -- | Secret for signing session cookies (32+ chars) |
+| `ADMIN_OAUTH_CLIENT_ID` | Yes | -- | Zitadel OIDC app client ID for admin login |
+| `ADMIN_BASE_URL` | Yes | -- | Public URL (e.g., `https://mcp.example.com`) |
+| `ADMIN_BOOTSTRAP_SUB` | Yes | -- | Zitadel subject ID for first admin |
+| `ADMIN_BOOTSTRAP_EMAIL` | No | -- | Email for first admin |
+| `ADMIN_COOKIE_SECURE` | No | `true` | Set to `false` for HTTP development |
+
+### OAuth (MCP endpoint authentication)
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OAUTH_ISSUER_URL` | Yes | -- | Zitadel issuer URL |
+| `OAUTH_RESOURCE_SERVER_URL` | Yes | -- | Public MCP endpoint URL |
+| `ZITADEL_INTROSPECTION_URL` | Yes | -- | Zitadel token introspection endpoint |
+| `ZITADEL_CLIENT_ID` | Yes | -- | API app client ID (for introspection) |
+| `ZITADEL_CLIENT_SECRET` | Yes | -- | API app client secret |
+| `MCP_OIDC_CLIENT_ID` | No | -- | Returned by DCR `/register` endpoint |
+
+### Caddy
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DOMAIN` | Yes | `mcp.example.com` | Your domain |
+| `ZITADEL_HOST` | Yes | -- | Zitadel instance hostname for OAuth proxy |
 
 ---
 
@@ -224,11 +281,11 @@ Add A records pointing to your VPS IP:
 
 **Tip**: Create a dedicated Odoo user (e.g., `mcp@yourcompany.com`) with appropriate permissions rather than using your admin account.
 
-### Finding your database name
+### Do I need ODOO_DB?
 
-- **Odoo.sh**: Check branch name in dashboard (e.g., `mycompany-main-4829371`)
-- **Self-hosted**: Go to `https://your-odoo.com/web/database/manager`
-- **Odoo.sh hosted**: Leave `ODOO_DB` empty -- hostname selects the database
+- **Odoo.sh / Odoo Online**: No -- the hostname determines the database
+- **Self-hosted with one database**: No -- auto-detected
+- **Self-hosted with multiple databases**: Yes -- set `ODOO_DB` to the database name
 
 ---
 
@@ -244,7 +301,7 @@ docker compose -f docker-compose.multi-tenant.yml logs -f --tail=50
 ### Restart
 
 ```bash
-docker compose -f docker-compose.multi-tenant.yml restart
+docker compose -f docker-compose.multi-tenant.yml restart mcp-server
 ```
 
 ### Update to new version
@@ -253,25 +310,32 @@ docker compose -f docker-compose.multi-tenant.yml restart
 cd /opt/odoo-mcp-pro
 git pull origin main
 cd deploy
-docker compose -f docker-compose.multi-tenant.yml up -d --build
+docker compose -f docker-compose.multi-tenant.yml build --no-cache mcp-server
+docker compose -f docker-compose.multi-tenant.yml up -d --force-recreate mcp-server
+```
+
+### Check usage
+
+```bash
+docker compose -f docker-compose.multi-tenant.yml exec postgres \
+  psql -U mcp -d mcp_admin -c "SELECT uc.email, ud.day, ud.call_count FROM usage_daily ud JOIN user_connections uc ON ud.zitadel_sub = uc.zitadel_sub ORDER BY ud.day DESC, ud.call_count DESC;"
 ```
 
 ---
 
 ## Troubleshooting
 
-### MCP server returns 401
+### MCP endpoint returns 401
 
-This is correct -- OAuth is protecting the endpoint. Users need to authenticate via Claude.ai.
+This is correct -- OAuth is protecting the endpoint. Users authenticate via their AI tool (Claude.ai, etc.).
 
 ### "No Odoo connection configured"
 
-The user has logged in but hasn't set up their API key yet. Direct them to `/admin/setup`.
+The user logged in but hasn't set up their Odoo connection yet. Direct them to `/admin/setup`.
 
 ### Token introspection fails
 
 ```bash
-# Test from the server
 source .env
 curl -s $ZITADEL_INTROSPECTION_URL \
   --user "$ZITADEL_CLIENT_ID:$ZITADEL_CLIENT_SECRET" \
@@ -279,11 +343,25 @@ curl -s $ZITADEL_INTROSPECTION_URL \
 # Should return {"active":false}
 ```
 
+### API keys stored in plaintext
+
+Check if `API_KEY_ENCRYPTION_KEY` is set. Generate one:
+
+```bash
+python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+Add to `.env` and restart. Existing plaintext keys will be decrypted transparently; re-saving a connection encrypts the key.
+
 ### Caddy TLS errors
 
-- Verify DNS A records point to VPS IP: `dig +short mcp.example.com`
+- Verify DNS A record: `dig +short mcp.example.com`
 - Ensure ports 80 and 443 are open
 - Cloudflare users: set proxy to DNS-only (grey cloud)
+
+### Version detection fails for Odoo.sh
+
+Odoo.sh SaaS versions use strings like `saas~19`. This is handled automatically since v1.0.1.
 
 ---
 
