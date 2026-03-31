@@ -106,10 +106,13 @@ class ConnectionRegistry:
         )
 
         # Create connection with detected API version
+        # For XML-RPC (Odoo 14-18), the Zitadel email is used as the Odoo login
+        # (API key auth requires both username and key as password)
         config = OdooConfig(
             url=user_conn.odoo_url,
             database="",
             api_key=user_conn.odoo_api_key,
+            username=user_conn.email if api_version == "xmlrpc" else None,
             api_version=api_version,
         )
 

@@ -155,6 +155,18 @@
                             {% endif %}
                         </div>
 
+                        <div>
+                            <label class="block text-xs font-medium text-white/60 mb-1">
+                                Odoo Username
+                            </label>
+                            <input type="text" readonly
+                                   value="{{ user.email if user else '' }}"
+                                   class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60 shadow-sm cursor-not-allowed">
+                            <p class="mt-1 text-xs text-white/40">
+                                For Odoo 14-18 (XML-RPC), this must match the login email of the Odoo user that owns the API key. For Odoo 19+ this is not used.
+                            </p>
+                        </div>
+
                         <div class="flex items-center space-x-3">
                             <button type="submit"
                                     class="rounded-lg bg-brand-accent px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent-hover transition-colors">
