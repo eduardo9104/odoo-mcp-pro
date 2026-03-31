@@ -421,6 +421,23 @@ class OdooJSON2Connection:
         logger.info(f"Created {model} record with ID {record_id}")
         return record_id
 
+    def create_bulk(self, model: str, vals_list: List[Dict[str, Any]]) -> List[int]:
+        """Create multiple records in a single call.
+
+        Args:
+            model: Odoo model name
+            vals_list: List of dicts, each containing field values for one record
+
+        Returns:
+            List of IDs of the created records
+        """
+        result = self._call(model, "create", vals_list=vals_list)
+        self._fields_cache.pop(model, None)
+        if not isinstance(result, list):
+            result = [result]
+        logger.info(f"Bulk created {len(result)} {model} record(s)")
+        return result
+
     def write(self, model: str, ids: List[int], values: Dict[str, Any]) -> bool:
         """Update existing records.
 

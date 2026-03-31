@@ -48,21 +48,14 @@ class OdooResourceHandler:
     ):
         """Initialize resource handler.
 
-        Supports two modes:
-        - Registry mode (HTTP/multi-tenant): pass registry, connection per-request via auth context
-        - Fallback mode (stdio/single-tenant): pass connection + access_controller directly
-
-        Args:
-            app: FastMCP application instance
-            connection: Fallback Odoo connection for stdio mode
-            access_controller: Fallback access controller for stdio mode
-            config: Odoo configuration instance
-            registry: ConnectionRegistry for multi-tenant lookups (HTTP mode)
+        Two modes:
+        - Multi-tenant (HTTP): pass registry, connection resolved per-request via auth context
+        - Single-tenant (stdio): pass connection + access_controller directly
         """
         self.app = app
         self.registry = registry
-        self._fallback_connection = connection
-        self._fallback_access_controller = access_controller
+        self.connection = connection
+        self.access_controller = access_controller
         self.config = config
 
         # Register resources
@@ -82,33 +75,20 @@ class OdooResourceHandler:
             ValidationError: If no connection is available
         """
         if self.registry is not None:
-            try:
-                from mcp.server.auth.middleware.auth_context import get_access_token
+            from mcp.server.auth.middleware.auth_context import get_access_token
 
-                access_token = get_access_token()
-                if access_token is not None:
-                    sub = access_token.client_id
-                    cached = await self.registry.get_connection(sub)
-                    return cached.connection, cached.access_controller
-            except Exception:
-                pass
+            access_token = get_access_token()
+            if access_token is None:
+                raise ValidationError("No authentication token available")
+            sub = access_token.client_id
+            cached = await self.registry.get_connection(sub)
+            return cached.connection, cached.access_controller
 
-        # Fallback for stdio mode
-        if self._fallback_connection is not None and self._fallback_access_controller is not None:
-            return self._fallback_connection, self._fallback_access_controller
+        # Stdio mode: use direct connection
+        if self.connection is not None and self.access_controller is not None:
+            return self.connection, self.access_controller
 
         raise ValidationError("No Odoo connection available")
-
-    # Convenience properties for backward compatibility
-    @property
-    def connection(self) -> Optional[OdooConnectionProtocol]:
-        """Fallback connection for backward compatibility."""
-        return self._fallback_connection
-
-    @property
-    def access_controller(self) -> Optional[AccessController]:
-        """Fallback access controller for backward compatibility."""
-        return self._fallback_access_controller
 
     def _register_resources(self):
         """Register all resource handlers with FastMCP."""
@@ -913,7 +893,7 @@ class OdooResourceHandler:
         Returns:
             Formatted text representation
         """
-        conn = connection or self._fallback_connection
+        conn = connection or self.connection
         # Get field metadata if available
         try:
             fields_metadata = conn.fields_get(model) if conn else None

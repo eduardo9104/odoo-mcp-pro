@@ -118,9 +118,7 @@ class ConnectionRegistry:
             if api_version == "json2":
                 conn = OdooJSON2Connection(config)
             else:
-                conn = OdooConnection(
-                    config, performance_manager=PerformanceManager(config)
-                )
+                conn = OdooConnection(config, performance_manager=PerformanceManager(config))
             conn.connect()
             conn.authenticate()
         except Exception as e:
@@ -143,9 +141,9 @@ class ConnectionRegistry:
         cached = self._connections.pop(key, None)
         if cached:
             try:
-                cached.connection.disconnect(suppress_logging=True)
-            except Exception:
-                pass
+                cached.connection.disconnect()
+            except Exception as e:
+                logger.warning(f"Error closing connection for {key}: {e}")
 
     def revoke_user(self, zitadel_sub: str):
         """Close and remove all connections for a user."""

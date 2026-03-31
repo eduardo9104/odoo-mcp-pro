@@ -39,8 +39,14 @@ class OdooConfig:
     # API version: set by auto-detection after connecting (json2 for Odoo 19+, xmlrpc for 14-18)
     api_version: Literal["auto", "xmlrpc", "json2"] = "auto"
 
+    # Skip validation for multi-tenant mode (no Odoo config at startup)
+    skip_validation: bool = False
+
     def __post_init__(self):
         """Validate configuration after initialization."""
+        if self.skip_validation:
+            return
+
         # Validate URL
         if not self.url:
             raise ValueError("ODOO_URL is required")
@@ -88,7 +94,6 @@ class OdooConfig:
         # Validate port
         if self.port <= 0 or self.port > 65535:
             raise ValueError("Port must be between 1 and 65535")
-
 
     @property
     def uses_api_key(self) -> bool:
@@ -175,19 +180,13 @@ def load_config(env_file: Optional[Path] = None) -> OdooConfig:
 
     # In multi-tenant mode (DATABASE_URL set), Odoo connection config is
     # not needed at startup — connections are created per-user from the database.
-    # Provide placeholder values to pass OdooConfig validation.
     is_multi_tenant = bool(os.getenv("DATABASE_URL", "").strip())
-    odoo_url = os.getenv("ODOO_URL", "").strip()
-    api_key = os.getenv("ODOO_API_KEY", "").strip() or None
-
-    if is_multi_tenant:
-        odoo_url = odoo_url or "http://localhost:8069"
-        api_key = api_key or "multi-tenant-placeholder"
 
     # Create configuration
     config = OdooConfig(
-        url=odoo_url,
-        api_key=api_key,
+        skip_validation=is_multi_tenant,
+        url=os.getenv("ODOO_URL", "").strip(),
+        api_key=os.getenv("ODOO_API_KEY", "").strip() or None,
         username=os.getenv("ODOO_USER", "").strip() or None,
         password=os.getenv("ODOO_PASSWORD", "").strip() or None,
         database=os.getenv("ODOO_DB", "").strip() or None,

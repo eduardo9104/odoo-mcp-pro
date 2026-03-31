@@ -20,6 +20,7 @@ try:
 except ImportError:
     MODEL_DISCOVERY_AVAILABLE = False
 
+
 def is_odoo_server_available(host: str = "localhost", port: int = 8069) -> bool:
     """Check if Odoo server is available at the given host and port."""
     try:

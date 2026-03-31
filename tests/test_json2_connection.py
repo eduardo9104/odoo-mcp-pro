@@ -230,10 +230,11 @@ class TestOdooJSON2Lifecycle:
         assert conn.database is None
         mock_client.close.assert_called_once()
 
-    def test_disconnect_not_connected(self, json2_config, caplog):
+    def test_disconnect_not_connected(self, json2_config):
+        """Disconnect when not connected is a no-op."""
         conn = OdooJSON2Connection(json2_config)
-        conn.disconnect()
-        assert "Not connected" in caplog.text
+        conn.disconnect()  # should not raise
+        assert not conn.is_connected
 
     def test_authenticate_not_connected(self, json2_config):
         conn = OdooJSON2Connection(json2_config)

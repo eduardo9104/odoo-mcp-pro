@@ -18,7 +18,9 @@ class TestDetectApiVersion:
             "server_version_info": [19, 0, 0, "final", 0],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "json2"
@@ -32,7 +34,9 @@ class TestDetectApiVersion:
             "server_version_info": [17, 0, 0, "final", 0],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "xmlrpc"
@@ -46,7 +50,9 @@ class TestDetectApiVersion:
             "server_version_info": [14, 0, 0, "final", 0],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "xmlrpc"
@@ -60,7 +66,9 @@ class TestDetectApiVersion:
             "server_version_info": [20, 0, 0, "final", 0],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "json2"
@@ -74,7 +82,9 @@ class TestDetectApiVersion:
             "server_version_info": [],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "json2"
@@ -85,7 +95,9 @@ class TestDetectApiVersion:
         mock_proxy = MagicMock()
         mock_proxy.version.side_effect = ConnectionRefusedError("refused")
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://unreachable.example.com")
 
         assert api_version == "xmlrpc"
@@ -96,7 +108,9 @@ class TestDetectApiVersion:
         mock_proxy = MagicMock()
         mock_proxy.version.side_effect = TimeoutError("timeout")
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://slow.example.com")
 
         assert api_version == "xmlrpc"
@@ -107,7 +121,9 @@ class TestDetectApiVersion:
         mock_proxy = MagicMock()
         mock_proxy.version.return_value = {}
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "xmlrpc"
@@ -121,7 +137,9 @@ class TestDetectApiVersion:
             "server_version_info": [19, 0, 0, "final", 0],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy) as mock_cls:
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ) as mock_cls:
             detect_api_version("https://mycompany.odoo.com/")
 
         mock_cls.assert_called_once_with(
@@ -141,7 +159,9 @@ class TestDetectApiVersion:
             "server_version_info": [19, 0, 0, "alpha", 1],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, _ = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "json2"
@@ -154,7 +174,9 @@ class TestDetectApiVersion:
             "server_version_info": [18, 0, 0, "final", 0],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, _ = detect_api_version("https://mycompany.odoo.com")
 
         assert api_version == "xmlrpc"
@@ -200,7 +222,9 @@ class TestDetectSaasVersions:
             "server_version_info": ["saas~19", 2, 0, "final", 0, "e"],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://cg-folks.odoo.com")
 
         assert api_version == "json2"
@@ -214,7 +238,9 @@ class TestDetectSaasVersions:
             "server_version_info": ["saas~17", 4, 0, "final", 0, ""],
         }
 
-        with patch("mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy):
+        with patch(
+            "mcp_server_odoo.version_detect.xmlrpc.client.ServerProxy", return_value=mock_proxy
+        ):
             api_version, server_version = detect_api_version("https://example.odoo.com")
 
         assert api_version == "xmlrpc"

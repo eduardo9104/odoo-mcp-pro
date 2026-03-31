@@ -26,6 +26,9 @@ from .error_sanitizer import ErrorSanitizer
 from .logging_config import get_logger, perf_logger
 from .odoo_connection import OdooConnectionError
 from .schemas import (
+    BulkCreateResult,
+    BulkDeleteResult,
+    BulkUpdateResult,
     CreateResult,
     DeleteResult,
     FieldSelectionMetadata,
@@ -42,6 +45,8 @@ if TYPE_CHECKING:
     from .usage import UsageTracker
 
 logger = get_logger(__name__)
+
+MAX_BULK_SIZE = 1000  # Maximum records per bulk operation
 
 # ContextVar to pass the current user's sub from _get_user_context to the wrapper
 _current_sub: contextvars.ContextVar[str] = contextvars.ContextVar("_current_sub", default="stdio")
@@ -716,6 +721,96 @@ class OdooToolHandler:
             self._track_usage(_current_sub.get(), "delete_record")
             return DeleteResult(**result)
 
+        # --- Bulk Operations ---
+
+        @self.app.tool(
+            title="Create Records (Bulk)",
+            annotations=ToolAnnotations(
+                readOnlyHint=False,
+                destructiveHint=False,
+                idempotentHint=False,
+                openWorldHint=True,
+            ),
+        )
+        async def create_records(
+            model: str,
+            vals_list: List[Dict[str, Any]],
+        ) -> BulkCreateResult:
+            """Create multiple records in a single operation (max 1000).
+
+            Much faster than calling create_record repeatedly. Use this when
+            importing data, creating batches of records, or any scenario with
+            more than a few records.
+
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                vals_list: List of dicts, each containing field values for one record.
+                    Example: [{"name": "Alice"}, {"name": "Bob"}]
+
+            Returns:
+                List of created record IDs with count and confirmation.
+            """
+            result = await self._handle_create_records_tool(model, vals_list)
+            self._track_usage(_current_sub.get(), "create_records")
+            return BulkCreateResult(**result)
+
+        @self.app.tool(
+            title="Update Records (Bulk)",
+            annotations=ToolAnnotations(
+                readOnlyHint=False,
+                destructiveHint=False,
+                idempotentHint=True,
+                openWorldHint=True,
+            ),
+        )
+        async def update_records(
+            model: str,
+            record_ids: List[int],
+            values: Dict[str, Any],
+        ) -> BulkUpdateResult:
+            """Update multiple records with the same values in a single operation (max 1000).
+
+            Use this for mass updates like tagging contacts, changing statuses,
+            or applying the same change to many records at once.
+
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                record_ids: List of record IDs to update
+                values: Field values to apply to all specified records
+
+            Returns:
+                List of updated record IDs with count and confirmation.
+            """
+            result = await self._handle_update_records_tool(model, record_ids, values)
+            self._track_usage(_current_sub.get(), "update_records")
+            return BulkUpdateResult(**result)
+
+        @self.app.tool(
+            title="Delete Records (Bulk)",
+            annotations=ToolAnnotations(
+                readOnlyHint=False,
+                destructiveHint=True,
+                idempotentHint=False,
+                openWorldHint=False,
+            ),
+        )
+        async def delete_records(
+            model: str,
+            record_ids: List[int],
+        ) -> BulkDeleteResult:
+            """Delete multiple records in a single operation (max 1000).
+
+            Args:
+                model: The Odoo model name (e.g., 'res.partner')
+                record_ids: List of record IDs to delete
+
+            Returns:
+                List of deleted record IDs with count and confirmation.
+            """
+            result = await self._handle_delete_records_tool(model, record_ids)
+            self._track_usage(_current_sub.get(), "delete_records")
+            return BulkDeleteResult(**result)
+
     async def _handle_search_tool(
         self,
         model: str,
@@ -1205,6 +1300,132 @@ class OdooToolHandler:
             logger.error(f"Error in delete_record tool: {e}")
             sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
             raise ValidationError(f"Failed to delete record: {sanitized_msg}") from e
+
+
+    # --- Bulk Operation Handlers ---
+
+    async def _handle_create_records_tool(
+        self,
+        model: str,
+        vals_list: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Handle bulk create tool request."""
+        try:
+            connection, access_controller, sub = await self._get_user_context()
+            with perf_logger.track_operation("tool_create_records", model=model):
+                access_controller.validate_model_access(model, "create")
+                if not connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+                if not vals_list:
+                    raise ValidationError("vals_list cannot be empty")
+                if len(vals_list) > MAX_BULK_SIZE:
+                    raise ValidationError(
+                        f"Bulk create limited to {MAX_BULK_SIZE} records, got {len(vals_list)}"
+                    )
+
+                created_ids = connection.create_bulk(model, vals_list)
+
+                return {
+                    "success": True,
+                    "created_ids": created_ids,
+                    "count": len(created_ids),
+                    "model": model,
+                    "message": f"Successfully created {len(created_ids)} {model} record(s)",
+                }
+
+        except ValidationError:
+            raise
+        except AccessControlError as e:
+            raise ValidationError(f"Access denied: {e}") from e
+        except OdooConnectionError as e:
+            raise ValidationError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in create_records tool: {e}")
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ValidationError(f"Bulk create failed: {sanitized_msg}") from e
+
+    async def _handle_update_records_tool(
+        self,
+        model: str,
+        record_ids: List[int],
+        values: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Handle bulk update tool request."""
+        try:
+            connection, access_controller, sub = await self._get_user_context()
+            with perf_logger.track_operation("tool_update_records", model=model):
+                access_controller.validate_model_access(model, "write")
+                if not connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+                if not record_ids:
+                    raise ValidationError("record_ids cannot be empty")
+                if not values:
+                    raise ValidationError("values cannot be empty")
+                if len(record_ids) > MAX_BULK_SIZE:
+                    raise ValidationError(
+                        f"Bulk update limited to {MAX_BULK_SIZE} records, got {len(record_ids)}"
+                    )
+
+                connection.write(model, record_ids, values)
+
+                return {
+                    "success": True,
+                    "updated_ids": record_ids,
+                    "count": len(record_ids),
+                    "model": model,
+                    "message": f"Successfully updated {len(record_ids)} {model} record(s)",
+                }
+
+        except ValidationError:
+            raise
+        except AccessControlError as e:
+            raise ValidationError(f"Access denied: {e}") from e
+        except OdooConnectionError as e:
+            raise ValidationError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in update_records tool: {e}")
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ValidationError(f"Bulk update failed: {sanitized_msg}") from e
+
+    async def _handle_delete_records_tool(
+        self,
+        model: str,
+        record_ids: List[int],
+    ) -> Dict[str, Any]:
+        """Handle bulk delete tool request."""
+        try:
+            connection, access_controller, sub = await self._get_user_context()
+            with perf_logger.track_operation("tool_delete_records", model=model):
+                access_controller.validate_model_access(model, "unlink")
+                if not connection.is_authenticated:
+                    raise ValidationError("Not authenticated with Odoo")
+                if not record_ids:
+                    raise ValidationError("record_ids cannot be empty")
+                if len(record_ids) > MAX_BULK_SIZE:
+                    raise ValidationError(
+                        f"Bulk delete limited to {MAX_BULK_SIZE} records, got {len(record_ids)}"
+                    )
+
+                connection.unlink(model, record_ids)
+
+                return {
+                    "success": True,
+                    "deleted_ids": record_ids,
+                    "count": len(record_ids),
+                    "model": model,
+                    "message": f"Successfully deleted {len(record_ids)} {model} record(s)",
+                }
+
+        except ValidationError:
+            raise
+        except AccessControlError as e:
+            raise ValidationError(f"Access denied: {e}") from e
+        except OdooConnectionError as e:
+            raise ValidationError(f"Connection error: {e}") from e
+        except Exception as e:
+            logger.error(f"Error in delete_records tool: {e}")
+            sanitized_msg = ErrorSanitizer.sanitize_message(str(e))
+            raise ValidationError(f"Bulk delete failed: {sanitized_msg}") from e
 
 
 def register_tools(

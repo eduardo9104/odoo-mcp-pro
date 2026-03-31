@@ -74,10 +74,10 @@ def detect_api_version(
             logger.warning("Could not parse Odoo version, falling back to xmlrpc")
             return "xmlrpc", None
 
-        api_version: Literal["json2", "xmlrpc"] = "json2" if major >= JSON2_MIN_VERSION else "xmlrpc"
-        logger.info(
-            f"Detected Odoo {server_version} (major={major}) -> api_version={api_version}"
+        api_version: Literal["json2", "xmlrpc"] = (
+            "json2" if major >= JSON2_MIN_VERSION else "xmlrpc"
         )
+        logger.info(f"Detected Odoo {server_version} (major={major}) -> api_version={api_version}")
         return api_version, server_version
 
     except Exception as e:

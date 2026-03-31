@@ -194,15 +194,9 @@ class OdooConnection:
         except Exception as e:
             raise OdooConnectionError(f"Connection test failed: {e}") from e
 
-    def disconnect(self, suppress_logging: bool = False) -> None:
+    def disconnect(self) -> None:
         """Close connection and cleanup resources."""
         if not self._connected:
-            if not suppress_logging:
-                try:
-                    logger.warning("Not connected to Odoo")
-                except (ValueError, RuntimeError):
-                    # Ignore logging errors during cleanup
-                    pass
             return
 
         # Clear proxies (but don't close pooled connections)
@@ -217,12 +211,7 @@ class OdooConnection:
         self._authenticated = False
         self._auth_method = None
 
-        if not suppress_logging:
-            try:
-                logger.info("Disconnected from Odoo server")
-            except (ValueError, RuntimeError):
-                # Ignore logging errors during cleanup
-                pass
+        logger.info("Disconnected from Odoo server")
 
     def check_health(self) -> Tuple[bool, str]:
         """Check connection health.
@@ -327,7 +316,7 @@ class OdooConnection:
             # Only disconnect if we're actually connected
             if hasattr(self, "_connected") and self._connected:
                 # Suppress logging during cleanup to avoid I/O errors
-                self.disconnect(suppress_logging=True)
+                self.disconnect()
         except (ValueError, AttributeError, RuntimeError):
             # ValueError: I/O operation on closed file
             # AttributeError: object might be partially initialized
@@ -931,6 +920,31 @@ class OdooConnection:
                 return record_id
         except Exception as e:
             logger.error(f"Failed to create {model} record: {e}")
+            raise
+
+    def create_bulk(self, model: str, vals_list: List[Dict[str, Any]]) -> List[int]:
+        """Create multiple records in a single call.
+
+        Args:
+            model: Odoo model name
+            vals_list: List of dicts, each containing field values for one record
+
+        Returns:
+            List of IDs of the created records
+
+        Raises:
+            OdooConnectionError: If creation fails
+        """
+        try:
+            with self._performance_manager.monitor.track_operation(f"create_bulk_{model}"):
+                result = self.execute_kw(model, "create", [vals_list], {})
+                self._performance_manager.invalidate_record_cache(model)
+                if not isinstance(result, list):
+                    result = [result]
+                logger.info(f"Bulk created {len(result)} {model} record(s)")
+                return result
+        except Exception as e:
+            logger.error(f"Failed to bulk create {model} records: {e}")
             raise
 
     def write(self, model: str, ids: List[int], values: Dict[str, Any]) -> bool:

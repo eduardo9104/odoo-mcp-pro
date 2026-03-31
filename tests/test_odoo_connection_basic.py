@@ -196,12 +196,11 @@ class TestOdooConnectionDisconnect:
         assert conn._common_proxy is None
         assert conn._object_proxy is None
 
-    def test_disconnect_when_not_connected(self, test_config, caplog):
-        """Test disconnect when not connected."""
+    def test_disconnect_when_not_connected(self, test_config):
+        """Disconnect when not connected is a no-op."""
         conn = OdooConnection(test_config)
-
-        conn.disconnect()
-        assert "Not connected to Odoo" in caplog.text
+        conn.disconnect()  # should not raise
+        assert not conn.is_connected
 
     @pytest.mark.odoo_required
     @pytest.mark.xmlrpc_only

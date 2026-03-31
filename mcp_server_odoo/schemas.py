@@ -145,6 +145,39 @@ class DeleteResult(BaseModel):
     message: str = Field(description="Human-readable success message")
 
 
+# --- Bulk Operations ---
+
+
+class BulkCreateResult(BaseModel):
+    """Result of bulk creating records."""
+
+    success: bool = Field(description="Whether all records were created successfully")
+    created_ids: List[int] = Field(description="IDs of the created records")
+    count: int = Field(description="Number of records created")
+    model: str = Field(description="Odoo model name")
+    message: str = Field(description="Human-readable success message")
+
+
+class BulkUpdateResult(BaseModel):
+    """Result of bulk updating records."""
+
+    success: bool = Field(description="Whether all records were updated successfully")
+    updated_ids: List[int] = Field(description="IDs of the updated records")
+    count: int = Field(description="Number of records updated")
+    model: str = Field(description="Odoo model name")
+    message: str = Field(description="Human-readable success message")
+
+
+class BulkDeleteResult(BaseModel):
+    """Result of bulk deleting records."""
+
+    success: bool = Field(description="Whether all records were deleted successfully")
+    deleted_ids: List[int] = Field(description="IDs of the deleted records")
+    count: int = Field(description="Number of records deleted")
+    model: str = Field(description="Odoo model name")
+    message: str = Field(description="Human-readable success message")
+
+
 # --- Server Info ---
 
 
