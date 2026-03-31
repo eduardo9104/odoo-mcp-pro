@@ -393,8 +393,13 @@ class OdooConnection:
         try:
             databases = self.list_databases()
         except Exception as e:
-            # If database listing is restricted, we cannot auto-select
+            # Database listing restricted (common on Odoo.sh)
+            # Try to extract the real database name from the error message
             logger.warning(f"Cannot list databases (may be restricted): {e}")
+            db_name = self._guess_database_from_error(str(e))
+            if db_name:
+                logger.info(f"Inferred database name from server: {db_name}")
+                return db_name
             raise OdooConnectionError(
                 "Database auto-selection failed. Database listing may be restricted. "
                 "Please specify ODOO_DB in your configuration."
@@ -419,6 +424,43 @@ class OdooConnection:
             f"Cannot auto-select database. Found {len(databases)} databases: "
             f"{', '.join(databases)}. Please specify ODOO_DB in configuration."
         )
+
+    def _guess_database_from_error(self, error_msg: str) -> Optional[str]:
+        """Try to extract the real database name from an Odoo error message.
+
+        When Odoo.sh blocks db.list() but we try to authenticate with an empty
+        database name, the error message often contains the actual database name
+        (e.g., 'FATAL: database "mydb-production-12345" does not exist').
+        We trigger this by making a dummy call with an empty db name.
+
+        Returns:
+            Database name if found, None otherwise
+        """
+        import re
+
+        try:
+            # Make a dummy authenticate call with empty db to trigger an error
+            # that reveals the real database name
+            self.common_proxy.authenticate("", "dummy", "dummy", {})
+        except Exception as e:
+            error_text = str(e)
+            # Look for: database "xxx" does not exist
+            match = re.search(r'database "([^"]+)" does not exist', error_text)
+            if match:
+                # The error references the internal db name that Odoo tried
+                # This is the real database name on Odoo.sh
+                db_name = match.group(1)
+                # Sanity check: ignore the "p_" prefixed internal names
+                # that differ from what authenticate() expects
+                if db_name.startswith("p_"):
+                    # Convert p_xxx_production_nnn to xxx-production-nnn
+                    # Odoo.sh internal format: p_project_branch_id
+                    # External format: project-branch-id
+                    clean = db_name[2:].replace("_", "-")
+                    logger.debug(f"Converted internal db name '{db_name}' to '{clean}'")
+                    return clean
+                return db_name
+        return None
 
     def validate_database_access(self, db_name: str) -> bool:
         """Validate that we can access the specified database.
