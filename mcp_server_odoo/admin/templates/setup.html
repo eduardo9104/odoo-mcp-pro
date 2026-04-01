@@ -253,8 +253,56 @@
                         </div>
                     </div>
 
+                    <!-- Verify + status -->
+                    <div class="px-6 py-3 border-t border-white/10">
+                        <div class="flex items-center justify-between">
+                            <form method="post" action="/admin/setup/verify" class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit"
+                                        class="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-medium text-white/60 hover:text-white hover:border-white/40 transition-colors">
+                                    Test Connection
+                                </button>
+                            </form>
+                            {% if connection.last_verified_at %}
+                            <span class="text-xs {{ 'text-green-400' if not connection.last_error else 'text-red-400' }}">
+                                {% if connection.last_error %}
+                                Failed
+                                {% else %}
+                                Verified
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        {% if connection.last_verified_at %}
+                        <div class="mt-2 space-y-1">
+                            {% if connection.odoo_version %}
+                            <div class="flex items-center space-x-2 text-xs">
+                                <span class="text-white/30 w-16">Version</span>
+                                <span class="text-white/60">Odoo {{ connection.odoo_version }}</span>
+                            </div>
+                            {% endif %}
+                            {% if connection.odoo_hosting %}
+                            <div class="flex items-center space-x-2 text-xs">
+                                <span class="text-white/30 w-16">Hosting</span>
+                                <span class="text-white/60">{{ connection.odoo_hosting }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="flex items-center space-x-2 text-xs">
+                                <span class="text-white/30 w-16">Tested</span>
+                                <span class="text-white/40">{{ connection.last_verified_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            </div>
+                            {% if connection.last_error %}
+                            <div class="mt-1 text-xs text-red-400/80 bg-red-900/20 rounded px-2 py-1.5 break-all">
+                                {{ connection.last_error[:200] }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
                     <!-- Footer: last updated + remove -->
-                    <div class="px-6 py-3 border-t border-white/10 flex items-center justify-between">
+                    <div class="px-6 py-2 border-t border-white/10 flex items-center justify-between">
                         <span class="text-xs text-white/30">
                             Updated {{ connection.updated_at.strftime('%Y-%m-%d %H:%M') if connection.updated_at else 'unknown' }}
                         </span>

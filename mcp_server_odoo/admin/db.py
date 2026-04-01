@@ -68,6 +68,12 @@ ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES
 -- v5: Optional database name for self-hosted Odoo (14-18)
 ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS odoo_db TEXT;
 
+-- v6: Connection verification info
+ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS odoo_version TEXT;
+ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS odoo_hosting TEXT;
+ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS last_verified_at TIMESTAMPTZ;
+ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS last_error TEXT;
+
 CREATE TABLE IF NOT EXISTS usage_log (
     id           BIGSERIAL PRIMARY KEY,
     zitadel_sub  TEXT NOT NULL,
@@ -100,6 +106,10 @@ class UserConnection:
     updated_at: datetime
     plan_id: Optional[int] = None
     odoo_db: Optional[str] = None
+    odoo_version: Optional[str] = None
+    odoo_hosting: Optional[str] = None
+    last_verified_at: Optional[datetime] = None
+    last_error: Optional[str] = None
 
 
 @dataclass
@@ -212,6 +222,28 @@ class DatabaseManager:
             for uc in connections:
                 uc.odoo_api_key = decrypt_api_key(uc.odoo_api_key)
             return connections
+
+    async def update_verification(
+        self,
+        zitadel_sub: str,
+        odoo_version: Optional[str] = None,
+        odoo_hosting: Optional[str] = None,
+        last_error: Optional[str] = None,
+    ) -> None:
+        """Update verification info for a user's connection."""
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """UPDATE user_connections SET
+                    odoo_version = $2,
+                    odoo_hosting = $3,
+                    last_verified_at = NOW(),
+                    last_error = $4
+                WHERE zitadel_sub = $1""",
+                zitadel_sub,
+                odoo_version,
+                odoo_hosting,
+                last_error,
+            )
 
     async def delete_user_connection(self, connection_id: int) -> bool:
         async with self._pool.acquire() as conn:

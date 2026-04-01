@@ -125,3 +125,83 @@ def register_admin_routes(app, db_manager):
         await db_manager.delete_user_connection_by_sub(user["sub"])
         logger.info(f"User {user['email']} removed their connection")
         return RedirectResponse(url="/admin/setup", status_code=302)
+
+    @app.post("/setup/verify")
+    @require_login
+    async def setup_verify(request: Request):
+        """Verify the user's Odoo connection and store debug info."""
+        from ..version_detect import detect_api_version
+        from ..config import OdooConfig
+        from ..odoo_connection import OdooConnection
+        from ..odoo_json2_connection import OdooJSON2Connection
+        from ..performance import PerformanceManager
+
+        user = request.state.user
+        form = await request.form()
+
+        csrf_token = form.get("csrf_token", "")
+        if not validate_csrf_token(csrf_token):
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        connection = await db_manager.get_user_connection_by_sub(user["sub"])
+        if not connection:
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        odoo_version = None
+        odoo_hosting = None
+        error_msg = None
+
+        try:
+            # Step 1: Detect version
+            api_version, server_version = detect_api_version(connection.odoo_url)
+            odoo_version = server_version
+
+            # Step 2: Guess hosting type from URL and version string
+            url_lower = connection.odoo_url.lower()
+            if ".odoo.com" in url_lower:
+                if "saas~" in (server_version or ""):
+                    odoo_hosting = "odoo.sh"
+                else:
+                    odoo_hosting = "odoo.sh"
+            elif "odoo.com" in url_lower:
+                odoo_hosting = "odoo-online"
+            else:
+                odoo_hosting = "self-hosted"
+
+            # Step 3: Try to connect and authenticate
+            config = OdooConfig(
+                url=connection.odoo_url,
+                database=connection.odoo_db or "",
+                api_key=connection.odoo_api_key,
+                username=connection.email if api_version == "xmlrpc" else None,
+                api_version=api_version,
+            )
+
+            if api_version == "json2":
+                conn = OdooJSON2Connection(config)
+            else:
+                conn = OdooConnection(config, performance_manager=PerformanceManager(config))
+
+            conn.connect()
+            conn.authenticate()
+
+            if conn.is_authenticated:
+                logger.info(f"Verify OK for {user['email']}: {odoo_version} ({odoo_hosting}), UID={conn.uid}")
+            else:
+                error_msg = "Authentication failed"
+
+            conn.disconnect()
+
+        except Exception as e:
+            error_msg = str(e)[:500]
+            logger.warning(f"Verify failed for {user['email']}: {error_msg}")
+
+        # Store result
+        await db_manager.update_verification(
+            zitadel_sub=user["sub"],
+            odoo_version=odoo_version,
+            odoo_hosting=odoo_hosting,
+            last_error=error_msg,
+        )
+
+        return RedirectResponse(url="/admin/setup", status_code=302)
