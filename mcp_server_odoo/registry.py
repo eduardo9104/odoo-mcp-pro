@@ -88,18 +88,22 @@ class ConnectionRegistry:
         user_conn = await self.db_manager.get_user_connection_by_sub(zitadel_sub)
         if not user_conn or not user_conn.is_active:
             setup_url = os.getenv("ADMIN_BASE_URL", "").rstrip("/")
-            if setup_url:
-                raise OdooConnectionError(
-                    f"No Odoo connection configured. "
-                    f"Set up your connection at {setup_url}/admin/setup"
-                )
             raise OdooConnectionError(
-                f"User {zitadel_sub} has no Odoo connection configured. "
-                "Set up your connection first."
+                f"No Odoo connection configured. "
+                f"Please set up your connection at {setup_url}/admin/setup -- "
+                f"you need your Odoo URL and an API key."
             )
 
         # Auto-detect API version from Odoo server
-        api_version, server_version = detect_api_version(user_conn.odoo_url)
+        try:
+            api_version, server_version = detect_api_version(user_conn.odoo_url)
+        except Exception as e:
+            raise OdooConnectionError(
+                f"Cannot reach your Odoo server at {user_conn.odoo_url}. "
+                f"Please check that the URL is correct and the server is online. "
+                f"(Error: {e})"
+            ) from e
+
         logger.info(
             f"Auto-detected api_version={api_version} for {user_conn.odoo_url}"
             f" (Odoo {server_version or 'unknown'})"
@@ -125,7 +129,46 @@ class ConnectionRegistry:
             conn.connect()
             conn.authenticate()
         except Exception as e:
-            raise OdooConnectionError(f"Failed to connect to {user_conn.odoo_url}: {e}") from e
+            error_str = str(e)
+            setup_url = os.getenv("ADMIN_BASE_URL", "").rstrip("/")
+
+            # Build helpful troubleshooting message
+            details = [
+                f"Odoo URL: {user_conn.odoo_url}",
+                f"Odoo version: {server_version or 'unknown'}",
+                f"API mode: {api_version}",
+                f"Username: {user_conn.email}",
+                f"Database: {user_conn.odoo_db or 'auto-detect'}",
+            ]
+
+            hints = []
+            if "Authentication failed" in error_str:
+                if api_version == "xmlrpc":
+                    hints.append(
+                        "Your Odoo login email must match your sign-up email. "
+                        "Check that your API key belongs to this user."
+                    )
+                else:
+                    hints.append("Your API key may be invalid or expired. Regenerate it in Odoo.")
+            if "Database" in error_str or "database" in error_str:
+                hints.append(
+                    "The database name may be wrong or missing. "
+                    "Set it in Advanced settings on the setup page."
+                )
+
+            msg = (
+                f"Connection to your Odoo failed.\n\n"
+                f"Details:\n" + "\n".join(f"  - {d}" for d in details) + "\n\n"
+                f"Error: {error_str}\n\n"
+            )
+            if hints:
+                msg += "Troubleshooting:\n" + "\n".join(f"  - {h}" for h in hints) + "\n\n"
+            msg += (
+                f"You can verify your settings at {setup_url}/admin/setup (click 'Test Connection'). "
+                f"If the problem persists, forward this message to rutger@pantalytics.com."
+            )
+
+            raise OdooConnectionError(msg) from e
 
         access_controller = AccessController(config, connection=conn)
 
