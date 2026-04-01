@@ -109,23 +109,34 @@
                     <form method="post" action="/admin/setup" class="px-6 py-4 space-y-4">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
+                        <!-- Odoo URL -->
                         <div>
-                            <label class="block text-xs font-medium text-white/60 mb-1">
-                                Odoo URL
-                            </label>
+                            <div class="flex items-center space-x-1 mb-1">
+                                <label class="block text-xs font-medium text-white/60">Odoo URL</label>
+                                <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-white/30 hover:text-white/60 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                                </button>
+                                <div class="hidden text-xs text-white/40 ml-1">
+                                    The base URL of your Odoo instance, up to <code class="text-white/50">.com</code> or <code class="text-white/50">.tech</code> etc. No trailing slash, no <code class="text-white/50">/web</code> or <code class="text-white/50">/odoo</code>.
+                                </div>
+                            </div>
                             <input type="url" name="odoo_url" required
                                    value="{{ connection.odoo_url if connection else '' }}"
                                    placeholder="https://mycompany.odoo.com"
                                    class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent placeholder-white/30">
-                            <p class="mt-1 text-xs text-white/40">
-                                Your Odoo instance URL (e.g. https://mycompany.odoo.com)
-                            </p>
                         </div>
 
+                        <!-- API Key -->
                         <div>
-                            <label class="block text-xs font-medium text-white/60 mb-1">
-                                API Key
-                            </label>
+                            <div class="flex items-center space-x-1 mb-1">
+                                <label class="block text-xs font-medium text-white/60">API Key</label>
+                                <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-white/30 hover:text-white/60 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                                </button>
+                                <div class="hidden text-xs text-white/40 ml-1">
+                                    In Odoo: click your profile picture &rarr; My Profile &rarr; Account Security &rarr; New API Key. Copy the key immediately &mdash; it's only shown once.
+                                </div>
+                            </div>
                             {% if connection %}
                             <div class="flex items-center space-x-2 mb-2">
                                 <span class="font-mono text-sm text-white/60 tracking-widest">••••••••••••••••</span>
@@ -141,46 +152,31 @@
                                 <input type="password" name="odoo_api_key"
                                        placeholder="Paste new API key"
                                        class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent font-mono placeholder-white/30">
-                                <p class="mt-1 text-xs text-white/40">
-                                    Create in Odoo: Profile picture &rarr; My Preferences &rarr; Account Security &rarr; New API Key
-                                </p>
                             </div>
                             {% else %}
                             <input type="password" name="odoo_api_key" required
                                    placeholder="Paste your Odoo API key"
                                    class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent font-mono placeholder-white/30">
-                            <p class="mt-1 text-xs text-white/40">
-                                Create in Odoo: Profile picture &rarr; My Preferences &rarr; Account Security &rarr; New API Key
-                            </p>
                             {% endif %}
                         </div>
 
+                        <!-- Odoo Username (read-only) -->
                         <div>
-                            <label class="block text-xs font-medium text-white/60 mb-1">
-                                Database Name <span class="text-white/40">(optional)</span>
-                            </label>
-                            <input type="text" name="odoo_db"
-                                   value="{{ connection.odoo_db if connection and connection.odoo_db else '' }}"
-                                   placeholder="e.g. mycompany"
-                                   class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent placeholder-white/30">
-                            <p class="mt-1 text-xs text-white/40">
-                                Only needed for self-hosted Odoo (14-18) when auto-detection fails. Leave empty for Odoo.sh and Odoo Online.
-                                Find it in your Odoo URL (<code class="text-white/50">?db=...</code>), config file (<code class="text-white/50">db_name</code>), or at <code class="text-white/50">/web/database/manager</code>.
-                            </p>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-medium text-white/60 mb-1">
-                                Odoo Username
-                            </label>
+                            <div class="flex items-center space-x-1 mb-1">
+                                <label class="block text-xs font-medium text-white/60">Odoo Username</label>
+                                <button type="button" onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-white/30 hover:text-white/60 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                                </button>
+                                <div class="hidden text-xs text-white/40 ml-1">
+                                    This is the email you used to sign up here. For Odoo 14-18, it must match your Odoo login email. For Odoo 19+ it's not used. If it doesn't match, sign up with the same email you use in Odoo.
+                                </div>
+                            </div>
                             <input type="text" readonly
                                    value="{{ user.email if user else '' }}"
                                    class="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/60 shadow-sm cursor-not-allowed">
-                            <p class="mt-1 text-xs text-white/40">
-                                For Odoo 14-18 (XML-RPC), this must match the login email of the Odoo user that owns the API key. For Odoo 19+ this is not used.
-                            </p>
                         </div>
 
+                        <!-- Save button -->
                         <div class="flex items-center space-x-3">
                             <button type="submit"
                                     class="rounded-lg bg-brand-accent px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent-hover transition-colors">
@@ -191,6 +187,29 @@
                                 Last updated: {{ connection.updated_at.strftime('%Y-%m-%d %H:%M') if connection.updated_at else 'unknown' }}
                             </span>
                             {% endif %}
+                        </div>
+
+                        <!-- Advanced: Database Name (collapsed by default) -->
+                        <div class="border-t border-white/10 pt-3 mt-2">
+                            <button type="button" onclick="document.getElementById('advanced-section').classList.toggle('hidden'); this.querySelector('svg').classList.toggle('rotate-90')"
+                                    class="flex items-center space-x-1 text-xs text-white/40 hover:text-white/60 transition-colors">
+                                <svg class="w-3 h-3 transition-transform" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                                <span>Advanced settings</span>
+                            </button>
+                            <div id="advanced-section" class="{{ '' if (connection and connection.odoo_db) else 'hidden' }} mt-3">
+                                <div class="flex items-center space-x-1 mb-1">
+                                    <label class="block text-xs font-medium text-white/60">Database Name</label>
+                                    <span class="text-[10px] text-amber-400/70 font-medium">Self-hosted Odoo 14-18 only</span>
+                                </div>
+                                <input type="text" name="odoo_db"
+                                       value="{{ connection.odoo_db if connection and connection.odoo_db else '' }}"
+                                       placeholder="e.g. mycompany"
+                                       class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent placeholder-white/30">
+                                <p class="mt-1 text-xs text-white/40">
+                                    Only needed if auto-detection fails. Leave empty for Odoo.sh and Odoo Online.
+                                    Find it at <code class="text-white/50">your-odoo.com/web/database/manager</code> or in your config file as <code class="text-white/50">db_name</code>.
+                                </p>
+                            </div>
                         </div>
                     </form>
 
