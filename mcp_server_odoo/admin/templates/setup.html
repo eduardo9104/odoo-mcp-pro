@@ -99,10 +99,12 @@
                 <div class="bg-brand-surface shadow-sm rounded-xl border border-white/10">
                     <div class="px-6 py-4 flex items-center justify-between border-b border-white/10">
                         <h2 class="text-base font-heading font-medium text-white">Your Odoo Connection</h2>
-                        {% if connection %}
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-900 text-green-300">Connected</span>
+                        {% if connection and connection.last_verified_at and not connection.last_error %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-900 text-green-300">Verified</span>
+                        {% elif connection %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-900 text-amber-300">Configured</span>
                         {% else %}
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-900 text-amber-300">Not configured</span>
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-white/10 text-white/40">Not configured</span>
                         {% endif %}
                     </div>
 
@@ -168,9 +170,8 @@
 
                         <button type="submit"
                                 class="w-full rounded-lg bg-brand-accent px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent-hover transition-colors">
-                            Save &amp; Connect
+                            Save
                         </button>
-                        <p class="text-xs text-white/30 text-center">After saving, click "Test Connection" to verify your setup.</p>
                     </form>
 
                     {% else %}
