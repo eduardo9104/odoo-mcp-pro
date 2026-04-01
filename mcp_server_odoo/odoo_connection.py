@@ -526,23 +526,29 @@ class OdooConnection:
             return False
 
         try:
-            # Use standard XML-RPC auth with API key as password
-            uid = self.common_proxy.authenticate(
-                database, self.config.username, self.config.api_key, {}
-            )
+            # Try exact username first, then lowercase fallback
+            # (Odoo web UI lowercases logins, but XML-RPC does exact matching)
+            usernames_to_try = [self.config.username]
+            lowercase = self.config.username.lower()
+            if lowercase != self.config.username:
+                usernames_to_try.append(lowercase)
 
-            if uid:
-                self._uid = uid  # type: ignore[invalid-assignment]  # XML-RPC proxy is untyped
-                self._database = database
-                self._auth_method = "api_key"
-                self._authenticated = True
-                logger.info(
-                    f"Authenticated using API key as password for user '{self.config.username}' (UID: {uid})"
+            for username in usernames_to_try:
+                uid = self.common_proxy.authenticate(
+                    database, username, self.config.api_key, {}
                 )
-                return True
-            else:
-                logger.warning(f"Authentication failed for user '{self.config.username}'")
-                return False
+                if uid:
+                    self._uid = uid  # type: ignore[invalid-assignment]
+                    self._database = database
+                    self._auth_method = "api_key"
+                    self._authenticated = True
+                    logger.info(
+                        f"Authenticated using API key as password for user '{username}' (UID: {uid})"
+                    )
+                    return True
+
+            logger.warning(f"Authentication failed for user '{self.config.username}'")
+            return False
 
         except xmlrpc.client.Fault as e:
             # Handle specific Odoo authentication errors

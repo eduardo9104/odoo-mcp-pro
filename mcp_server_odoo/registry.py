@@ -112,7 +112,7 @@ class ConnectionRegistry:
             url=user_conn.odoo_url,
             database="",
             api_key=user_conn.odoo_api_key,
-            username=user_conn.email.lower() if api_version == "xmlrpc" and user_conn.email else None,
+            username=user_conn.email if api_version == "xmlrpc" else None,
             api_version=api_version,
         )
 
