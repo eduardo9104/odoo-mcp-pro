@@ -65,6 +65,9 @@ ON CONFLICT (name) DO NOTHING;
 
 ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS plan_id INTEGER REFERENCES usage_plans(id);
 
+-- v5: Optional database name for self-hosted Odoo (14-18)
+ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS odoo_db TEXT;
+
 CREATE TABLE IF NOT EXISTS usage_log (
     id           BIGSERIAL PRIMARY KEY,
     zitadel_sub  TEXT NOT NULL,
@@ -96,6 +99,7 @@ class UserConnection:
     created_at: datetime
     updated_at: datetime
     plan_id: Optional[int] = None
+    odoo_db: Optional[str] = None
 
 
 @dataclass
@@ -172,17 +176,19 @@ class DatabaseManager:
         odoo_url: str,
         odoo_api_key: str,
         email: Optional[str] = None,
+        odoo_db: Optional[str] = None,
     ) -> UserConnection:
         """Create or update a user's Odoo connection."""
         encrypted_key = encrypt_api_key(odoo_api_key)
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                """INSERT INTO user_connections (zitadel_sub, email, odoo_url, odoo_api_key)
-                   VALUES ($1, $2, $3, $4)
+                """INSERT INTO user_connections (zitadel_sub, email, odoo_url, odoo_api_key, odoo_db)
+                   VALUES ($1, $2, $3, $4, $5)
                    ON CONFLICT (zitadel_sub) DO UPDATE SET
                        email = COALESCE($2, user_connections.email),
                        odoo_url = $3,
                        odoo_api_key = $4,
+                       odoo_db = $5,
                        is_active = TRUE,
                        updated_at = NOW()
                    RETURNING *""",
@@ -190,6 +196,7 @@ class DatabaseManager:
                 email,
                 odoo_url,
                 encrypted_key,
+                odoo_db or None,
             )
             uc = UserConnection(**dict(row))
             # Decrypt for the returned object so callers get the plaintext key

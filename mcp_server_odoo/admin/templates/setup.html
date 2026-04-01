@@ -157,6 +157,20 @@
 
                         <div>
                             <label class="block text-xs font-medium text-white/60 mb-1">
+                                Database Name <span class="text-white/40">(optional)</span>
+                            </label>
+                            <input type="text" name="odoo_db"
+                                   value="{{ connection.odoo_db if connection and connection.odoo_db else '' }}"
+                                   placeholder="e.g. mycompany"
+                                   class="w-full rounded-lg border border-white/20 bg-brand-bg px-3 py-2 text-sm text-white shadow-sm focus:border-brand-accent focus:ring-brand-accent placeholder-white/30">
+                            <p class="mt-1 text-xs text-white/40">
+                                Only needed for self-hosted Odoo (14-18) when auto-detection fails. Leave empty for Odoo.sh and Odoo Online.
+                                Find it in your Odoo URL (<code class="text-white/50">?db=...</code>), config file (<code class="text-white/50">db_name</code>), or at <code class="text-white/50">/web/database/manager</code>.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-white/60 mb-1">
                                 Odoo Username
                             </label>
                             <input type="text" readonly

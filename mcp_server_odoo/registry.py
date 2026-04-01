@@ -110,7 +110,7 @@ class ConnectionRegistry:
         # (API key auth requires both username and key as password)
         config = OdooConfig(
             url=user_conn.odoo_url,
-            database="",
+            database=user_conn.odoo_db or "",
             api_key=user_conn.odoo_api_key,
             username=user_conn.email if api_version == "xmlrpc" else None,
             api_version=api_version,

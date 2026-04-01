@@ -75,6 +75,7 @@ def register_admin_routes(app, db_manager):
 
         odoo_url = form.get("odoo_url", "").strip()
         odoo_api_key = form.get("odoo_api_key", "").strip()
+        odoo_db = form.get("odoo_db", "").strip()
 
         if not odoo_url or not odoo_api_key:
             return RedirectResponse(url="/admin/setup", status_code=302)
@@ -85,6 +86,7 @@ def register_admin_routes(app, db_manager):
                 odoo_url=odoo_url,
                 odoo_api_key=odoo_api_key,
                 email=user.get("email"),
+                odoo_db=odoo_db or None,
             )
             logger.info(f"User {user['email']} saved connection to {odoo_url}")
             return RedirectResponse(url="/admin/setup", status_code=302)
