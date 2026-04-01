@@ -101,6 +101,8 @@
                         <h2 class="text-base font-heading font-medium text-white">Your Odoo Connection</h2>
                         {% if connection and connection.last_verified_at and not connection.last_error %}
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-900 text-green-300">Verified</span>
+                        {% elif connection and connection.last_error %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-900 text-red-300">Failed</span>
                         {% elif connection %}
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-900 text-amber-300">Configured</span>
                         {% else %}
