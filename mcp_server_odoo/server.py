@@ -36,7 +36,7 @@ from .tools import register_tools
 logger = get_logger(__name__)
 
 # Server version
-SERVER_VERSION = "1.1.2"
+SERVER_VERSION = "1.1.3"
 GIT_COMMIT = os.environ.get("GIT_COMMIT", "unknown")
 _BUILD_ORIGIN = "pnl-mcp-7f3a"  # Pantalytics provenance tag
 
