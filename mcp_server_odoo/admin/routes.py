@@ -44,12 +44,18 @@ def register_admin_routes(app, db_manager):
         mcp_server_url = _get_mcp_server_url()
         templates = request.app.state.templates
 
+        # Pass last 3 chars of API key for display (masked)
+        api_key_suffix = ""
+        if connection and connection.odoo_api_key:
+            api_key_suffix = connection.odoo_api_key[-3:]
+
         return templates.TemplateResponse(
             "setup.html",
             {
                 "request": request,
                 "user": user,
                 "connection": connection,
+                "api_key_suffix": api_key_suffix,
                 "mcp_server_url": mcp_server_url,
                 "csrf_token": generate_csrf_token(user),
             },
