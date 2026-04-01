@@ -77,18 +77,18 @@ def register_admin_routes(app, db_manager):
         odoo_api_key = form.get("odoo_api_key", "").strip()
         odoo_db = form.get("odoo_db", "").strip()
 
-        # URL is always required
-        if not odoo_url:
-            return RedirectResponse(url="/admin/setup", status_code=302)
-
-        # API key required for new connections, optional for updates
+        # For existing connections: fill in missing fields from current values
         existing = await db_manager.get_user_connection_by_sub(user["sub"])
-        if not odoo_api_key:
-            if existing:
-                # Keep existing API key when only updating URL/database
-                odoo_api_key = existing.odoo_api_key
-            else:
-                # New connection requires API key
+        if existing:
+            odoo_url = odoo_url or existing.odoo_url
+            odoo_api_key = odoo_api_key or existing.odoo_api_key
+            # odoo_db can be intentionally empty (cleared), so only fall back
+            # if the form field was not present at all
+            if "odoo_db" not in form:
+                odoo_db = existing.odoo_db or ""
+        else:
+            # New connection: URL and API key are required
+            if not odoo_url or not odoo_api_key:
                 return RedirectResponse(url="/admin/setup", status_code=302)
 
         try:
