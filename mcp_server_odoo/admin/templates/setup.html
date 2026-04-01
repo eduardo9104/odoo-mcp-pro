@@ -233,7 +233,7 @@
                                     </div>
                                     <p class="mt-1 text-xs text-white/40">
                                         Only needed for self-hosted Odoo 14-18 when auto-detection fails.<br>
-                                        <strong class="text-white/50">How to find it:</strong> Log into your Odoo, press F12 (or Fn+F12 on Mac) to open the browser console, and paste:
+                                        <strong class="text-white/50">How to find it:</strong> Log into your Odoo, press F12 (or Fn+F12 on Mac) to open the browser console, paste the following and press Enter:
                                     </p>
                                     <div class="mt-1.5 relative">
                                         <code id="db-snippet" class="block bg-white/5 rounded px-2 py-1.5 text-[11px] text-white/50 break-all leading-relaxed">fetch('/web/session/get_session_info',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"jsonrpc":"2.0","id":1,"params":{}}'}).then(r=>r.json()).then(d=>prompt('Your database name. Copy this value and paste it in the Database Name field:',d.result.db))</code>
