@@ -444,11 +444,21 @@ class TestOdooJSON2ORM:
 
         assert result is False
 
-    def test_check_access_rights_returns_false_on_error(self, connected_json2):
+    def test_check_access_rights_returns_true_on_404(self, connected_json2):
+        """404 means method not exposed — assume access allowed, let Odoo decide."""
         conn, mock_client = connected_json2
         mock_client.post.return_value = _error_response(404)
 
-        result = conn.check_access_rights("nonexistent.model", "read")
+        result = conn.check_access_rights("some.model", "read")
+
+        assert result is True
+
+    def test_check_access_rights_returns_false_on_403(self, connected_json2):
+        """403 means access denied."""
+        conn, mock_client = connected_json2
+        mock_client.post.return_value = _error_response(403)
+
+        result = conn.check_access_rights("some.model", "read")
 
         assert result is False
 

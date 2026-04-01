@@ -1067,8 +1067,14 @@ class OdooConnection:
                 model, "check_access_rights", [operation], {"raise_exception": False}
             )
             return bool(result)
-        except Exception:
-            return False
+        except Exception as e:
+            # If model doesn't exist (module not installed), assume no access
+            error_str = str(e).lower()
+            if "doesn't exist" in error_str or "does not exist" in error_str:
+                return False
+            # For other errors (network, etc.), assume access is granted
+            # and let the actual operation fail with a clear error
+            return True
 
     def get_server_version(self) -> Optional[Dict[str, Any]]:
         """Get Odoo server version information.

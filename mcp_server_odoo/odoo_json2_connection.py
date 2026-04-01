@@ -488,7 +488,15 @@ class OdooJSON2Connection:
                 raise_exception=False,
             )
             return bool(result)
-        except OdooConnectionError:
+        except OdooConnectionError as e:
+            # If check_access_rights returns 404, the method may not be exposed
+            # via JSON/2 on this Odoo instance. Assume access is granted and let
+            # the actual operation fail with a clear error if not permitted.
+            if "Not found" in str(e):
+                logger.debug(
+                    f"check_access_rights not available for {model}, assuming allowed"
+                )
+                return True
             return False
 
     def get_server_version(self) -> Optional[Dict[str, Any]]:
