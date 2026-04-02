@@ -392,8 +392,7 @@ class TestAuthenticationRouting:
 
                 error_msg = str(exc_info.value)
                 assert "Authentication failed" in error_msg
-                assert "Standard mode" in error_msg
-                assert "MCP module" in error_msg
+                assert "API key" in error_msg
 
 
 if __name__ == "__main__":

@@ -741,17 +741,18 @@ class OdooConnection:
                 logger.error(f"Critical error during password authentication: {e}")
                 raise
 
-        # Authentication failed - provide detailed error message
+        # Authentication failed - provide helpful error message
         if auth_errors:
-            error_details = "; ".join(auth_errors)
             raise OdooConnectionError(
-                f"Authentication failed: {error_details}"
-                " (Standard mode - ensure MCP module is installed and API key is valid)"
+                "Authentication failed. Please check: "
+                "(1) your API key is valid and not expired, "
+                "(2) your database name is correct (if self-hosted), "
+                "(3) your Odoo login email matches your sign-up email (for Odoo 14-18)."
             )
         else:
             raise OdooConnectionError(
                 "No authentication method configured. "
-                "Provide either API key or username/password credentials."
+                "Please provide an API key in the setup page."
             )
 
     @property
