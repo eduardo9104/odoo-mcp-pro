@@ -79,9 +79,17 @@ def register_admin_routes(app, db_manager):
         if not validate_csrf_token(csrf_token):
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-        odoo_url = form.get("odoo_url", "").strip()
+        odoo_url = form.get("odoo_url", "").strip().rstrip("/")
         odoo_api_key = form.get("odoo_api_key", "").strip()
         odoo_db = form.get("odoo_db", "").strip()
+
+        # Clean URL: keep only scheme + hostname (strip paths like /web, /odoo, etc.)
+        if odoo_url:
+            from urllib.parse import urlparse
+            parsed = urlparse(odoo_url)
+            if parsed.scheme and parsed.hostname:
+                port_str = f":{parsed.port}" if parsed.port and parsed.port not in (80, 443) else ""
+                odoo_url = f"{parsed.scheme}://{parsed.hostname}{port_str}"
 
         # For existing connections: fill in missing fields from current values
         existing = await db_manager.get_user_connection_by_sub(user["sub"])
@@ -156,7 +164,7 @@ def register_admin_routes(app, db_manager):
             api_version, server_version = detect_api_version(connection.odoo_url)
             odoo_version = server_version
         except Exception as e:
-            error_msg = f"URL check failed: Cannot reach {connection.odoo_url}. Is the URL correct and the server online?"
+            error_msg = f"Cannot reach Odoo at {connection.odoo_url}. Please check that the URL is correct (just the domain, e.g. https://mycompany.odoo.com) and the server is online."
             logger.warning(f"Verify URL failed for {user['email']}: {e}")
             await db_manager.update_verification(
                 zitadel_sub=user["sub"],
