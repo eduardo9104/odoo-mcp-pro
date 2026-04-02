@@ -151,24 +151,30 @@ def register_admin_routes(app, db_manager):
         odoo_hosting = None
         error_msg = None
 
+        # Step 1: Check URL — can we reach the server?
         try:
-            # Step 1: Detect version
             api_version, server_version = detect_api_version(connection.odoo_url)
             odoo_version = server_version
+        except Exception as e:
+            error_msg = f"URL check failed: Cannot reach {connection.odoo_url}. Is the URL correct and the server online?"
+            logger.warning(f"Verify URL failed for {user['email']}: {e}")
+            await db_manager.update_verification(
+                zitadel_sub=user["sub"],
+                odoo_version=None,
+                odoo_hosting=None,
+                last_error=error_msg,
+            )
+            return RedirectResponse(url="/admin/setup", status_code=302)
 
-            # Step 2: Guess hosting type from URL and version string
-            url_lower = connection.odoo_url.lower()
-            if ".odoo.com" in url_lower:
-                if "saas~" in (server_version or ""):
-                    odoo_hosting = "odoo.sh"
-                else:
-                    odoo_hosting = "odoo.sh"
-            elif "odoo.com" in url_lower:
-                odoo_hosting = "odoo-online"
-            else:
-                odoo_hosting = "self-hosted"
+        # Step 2: Determine hosting type
+        url_lower = connection.odoo_url.lower()
+        if ".odoo.com" in url_lower:
+            odoo_hosting = "odoo.sh"
+        else:
+            odoo_hosting = "self-hosted"
 
-            # Step 3: Try to connect and authenticate
+        # Step 3: Try to connect and authenticate
+        try:
             config = OdooConfig(
                 url=connection.odoo_url,
                 database=connection.odoo_db or "",
@@ -188,12 +194,46 @@ def register_admin_routes(app, db_manager):
             if conn.is_authenticated:
                 logger.info(f"Verify OK for {user['email']}: {odoo_version} ({odoo_hosting}), UID={conn.uid}")
             else:
-                error_msg = "Authentication failed"
+                if api_version == "xmlrpc":
+                    error_msg = (
+                        f"Authentication failed. Checked: URL OK ({odoo_version}), "
+                        f"username '{connection.email}', "
+                        f"database '{connection.odoo_db or 'auto-detect'}'. "
+                        f"Please verify: (1) your API key is valid, "
+                        f"(2) your Odoo login matches '{connection.email}', "
+                        f"(3) the database name is correct."
+                    )
+                else:
+                    error_msg = (
+                        f"Authentication failed. URL OK ({odoo_version}). "
+                        f"Please check that your API key is valid and not expired."
+                    )
 
             conn.disconnect()
 
         except Exception as e:
-            error_msg = str(e)[:500]
+            err = str(e)
+            if api_version == "xmlrpc" and "database" in err.lower():
+                error_msg = (
+                    f"Database error. URL OK ({odoo_version}), but the database "
+                    f"'{connection.odoo_db or 'auto-detect'}' could not be found. "
+                    f"Please set the correct database name in Advanced settings."
+                )
+            elif "Authentication failed" in err:
+                if api_version == "xmlrpc":
+                    error_msg = (
+                        f"Authentication failed. URL OK ({odoo_version}). "
+                        f"Tried username '{connection.email}' with your API key "
+                        f"on database '{connection.odoo_db or 'auto-detect'}'. "
+                        f"Check all three values."
+                    )
+                else:
+                    error_msg = (
+                        f"Authentication failed. URL OK ({odoo_version}). "
+                        f"Your API key appears to be invalid or expired."
+                    )
+            else:
+                error_msg = f"Connection failed: {err[:300]}"
             logger.warning(f"Verify failed for {user['email']}: {error_msg}")
 
         # Store result
