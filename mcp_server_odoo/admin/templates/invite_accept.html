@@ -1,0 +1,52 @@
+{% extends "brand_base.html" %}
+{% block title %}Join Team{% endblock %}
+
+{% block content %}
+<div class="px-6 lg:px-8 py-8">
+    <div class="max-w-md mx-auto">
+
+        {% if error %}
+        <!-- Error state -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 p-8 text-center">
+            <svg class="w-12 h-12 text-red-400/40 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h2 class="text-base font-heading font-medium text-white mb-2">{{ error }}</h2>
+            <p class="text-sm text-white/40 mb-4">Ask the team admin for a new invite link.</p>
+            <a href="/admin/setup" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-brand-accent text-white hover:bg-brand-accent-hover transition-colors">
+                Go to My Connection
+            </a>
+        </div>
+
+        {% elif invite and team %}
+        <!-- Valid invite -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 p-8 text-center">
+            <div class="w-14 h-14 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent mx-auto mb-4">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+            <h2 class="text-lg font-heading font-medium text-white mb-2">Join {{ team.name }}</h2>
+            <p class="text-sm text-white/50 mb-1">
+                You've been invited to connect to
+            </p>
+            <p class="text-sm text-white/70 font-medium mb-6">
+                {{ team.odoo_url|replace('https://', '')|replace('http://', '') }}
+            </p>
+
+            <form method="post" action="/admin/invite/{{ invite.invite_token }}/accept">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="w-full px-4 py-2.5 text-sm font-medium rounded-lg bg-brand-accent text-white hover:bg-brand-accent-hover transition-colors">
+                    Accept Invite &amp; Join Team
+                </button>
+            </form>
+
+            <p class="text-xs text-white/25 mt-4">
+                You'll be redirected to set up your own API key after joining.
+            </p>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

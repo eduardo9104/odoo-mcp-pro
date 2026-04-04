@@ -475,7 +475,7 @@ class OdooToolHandler:
             model: str,
             domain: Optional[Any] = None,
             fields: Optional[Any] = None,
-            limit: int = 10,
+            limit: int = 100,
             offset: int = 0,
             order: Optional[str] = None,
         ) -> SearchResult:

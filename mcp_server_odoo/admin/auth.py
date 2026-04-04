@@ -130,7 +130,9 @@ def require_login(func):
     async def wrapper(request: Request, *args, **kwargs):
         user = await get_current_user(request)
         if not user:
-            return RedirectResponse(url="/admin/login/start", status_code=302)
+            # Preserve current path as ?next= so user returns here after login
+            next_url = request.url.path
+            return RedirectResponse(url=f"/admin/login/start?next={next_url}", status_code=302)
         # Inject user into request state for easy access
         request.state.user = user
         return await func(request, *args, **kwargs)
@@ -171,6 +173,20 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
     if not client_id:
         logger.warning("ADMIN_OAUTH_CLIENT_ID not set — admin OAuth login will fail")
 
+    # Dev login: set ADMIN_DEV_LOGIN=true for local testing without Zitadel
+    if os.getenv("ADMIN_DEV_LOGIN", "").lower() == "true":
+        @app.get("/login/dev")
+        async def admin_dev_login(request: Request):
+            """Dev-only: instant admin login without Zitadel."""
+            bootstrap_sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "dev-admin-001")
+            bootstrap_email = os.getenv("ADMIN_BOOTSTRAP_EMAIL", "dev@localhost")
+            session_data = {"sub": bootstrap_sub, "email": bootstrap_email, "is_admin": True}
+            response = RedirectResponse(url="/admin/dashboard", status_code=302)
+            set_session(response, session_data)
+            return response
+
+        logger.warning("Dev login enabled at /admin/login/dev — DO NOT use in production")
+
     @app.get("/login")
     async def admin_login(request: Request):
         """Redirect to Zitadel login, or to setup if already logged in."""
@@ -195,9 +211,11 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         redirect_uri = f"{base_url}/admin/callback"
 
         # Store PKCE verifier keyed by state
+        next_url = request.query_params.get("next", "")
         _pending_auth[state] = {
             "code_verifier": code_verifier,
             "redirect_uri": redirect_uri,
+            "next": next_url,
         }
 
         # Build authorization URL
@@ -311,8 +329,12 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             "is_admin": is_admin,
         }
 
-        # All users go to setup page (admins can still access /admin/ via link)
-        redirect_url = "/admin/setup"
+        # Redirect to ?next= URL if set (e.g. invite link), otherwise setup page
+        next_url = pending.get("next", "")
+        if next_url and next_url.startswith("/admin/"):
+            redirect_url = next_url
+        else:
+            redirect_url = "/admin/setup"
         response = RedirectResponse(url=redirect_url, status_code=302)
         set_session(response, session_data)
 

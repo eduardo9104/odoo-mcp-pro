@@ -1,0 +1,214 @@
+{% extends "brand_base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="px-6 lg:px-8 py-8">
+    <div class="max-w-6xl mx-auto space-y-6">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-heading font-medium text-white">Users & Usage</h1>
+                <p class="text-sm text-white/40 mt-1">{{ users|length }} users registered</p>
+            </div>
+            <button onclick="exportCSV()" class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg bg-brand-accent text-white hover:bg-brand-accent-hover transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Export CSV
+            </button>
+        </div>
+
+        <!-- Summary cards -->
+        {% set active_users = users|selectattr('total_calls', 'gt', 0)|list %}
+        {% set total_calls = users|sum(attribute='total_calls') %}
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-brand-surface rounded-xl border border-white/10 p-4">
+                <p class="text-xs text-white/40">Total Users</p>
+                <p class="text-2xl font-heading font-medium text-white mt-1">{{ users|length }}</p>
+            </div>
+            <div class="bg-brand-surface rounded-xl border border-white/10 p-4">
+                <p class="text-xs text-white/40">Active Users</p>
+                <p class="text-2xl font-heading font-medium text-white mt-1">{{ active_users|length }}</p>
+            </div>
+            <div class="bg-brand-surface rounded-xl border border-white/10 p-4">
+                <p class="text-xs text-white/40">Total API Calls</p>
+                <p class="text-2xl font-heading font-medium text-white mt-1">{{ total_calls }}</p>
+            </div>
+            <div class="bg-brand-surface rounded-xl border border-white/10 p-4">
+                <p class="text-xs text-white/40">Odoo Instances</p>
+                <p class="text-2xl font-heading font-medium text-white mt-1">{{ users|map(attribute='odoo_url')|unique|list|length }}</p>
+            </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="flex flex-col sm:flex-row gap-3">
+            <input type="text" id="search" placeholder="Search email, URL, hosting..."
+                   class="flex-1 px-3 py-2 text-sm rounded-lg border border-white/10 bg-brand-surface text-white placeholder-white/30 focus:ring-2 focus:ring-brand-accent focus:border-transparent"
+                   oninput="filterTable()">
+            <select id="filter-hosting" onchange="filterTable()"
+                    class="px-3 py-2 text-sm rounded-lg border border-white/10 bg-brand-surface text-white">
+                <option value="">All hosting</option>
+                <option value="odoo.sh">Odoo.sh</option>
+                <option value="self-hosted">Self-hosted</option>
+                <option value="unknown">Unknown</option>
+            </select>
+            <select id="filter-status" onchange="filterTable()"
+                    class="px-3 py-2 text-sm rounded-lg border border-white/10 bg-brand-surface text-white">
+                <option value="">All status</option>
+                <option value="active">Active (has calls)</option>
+                <option value="inactive">Never used</option>
+                <option value="error">Has errors</option>
+            </select>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-white/10" id="users-table">
+                    <thead>
+                        <tr class="bg-white/5">
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(0)">Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(1)">Odoo URL</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(2)">Hosting</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(3)">Version</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(4, true)">Calls</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(5)">Registered</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider cursor-pointer hover:text-white/70" onclick="sortTable(6)">Last Active</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-white/40 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        {% for u in users %}
+                        <tr class="hover:bg-white/5 transition-colors"
+                            data-email="{{ u.email|lower }}"
+                            data-url="{{ u.odoo_url|lower }}"
+                            data-hosting="{{ u.odoo_hosting or 'unknown' }}"
+                            data-calls="{{ u.total_calls }}"
+                            data-error="{{ 'yes' if u.last_error else 'no' }}">
+                            <td class="px-4 py-3 text-sm text-white whitespace-nowrap">
+                                {{ u.email }}
+                                {% if u.odoo_db %}
+                                <span class="text-xs text-white/30 block">db: {{ u.odoo_db[:20] }}{% if u.odoo_db|length > 20 %}...{% endif %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-white/60 whitespace-nowrap">
+                                <a href="{{ u.odoo_url }}" target="_blank" class="hover:text-brand-accent hover:underline">
+                                    {{ u.odoo_url|replace('https://', '')|replace('http://', '') }}
+                                </a>
+                            </td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">
+                                {% if u.odoo_hosting == 'odoo.sh' %}
+                                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-900/60 text-blue-300 uppercase">Odoo.sh</span>
+                                {% elif u.odoo_hosting == 'self-hosted' %}
+                                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-purple-900/60 text-purple-300 uppercase">Self-hosted</span>
+                                {% else %}
+                                <span class="text-xs text-white/20">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-white/40 whitespace-nowrap">
+                                {{ u.odoo_version or '-' }}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-right font-mono whitespace-nowrap {% if u.total_calls > 50 %}text-green-400 font-semibold{% elif u.total_calls > 0 %}text-white{% else %}text-white/20{% endif %}">
+                                {{ u.total_calls }}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-white/40 whitespace-nowrap" data-sort="{{ u.created_at.isoformat() if u.created_at else '' }}">
+                                {{ u.created_at.strftime('%d %b %Y') if u.created_at else '-' }}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-white/40 whitespace-nowrap" data-sort="{{ u.last_call.isoformat() if u.last_call else '' }}">
+                                {% if u.last_call %}
+                                {{ u.last_call.strftime('%d %b %H:%M') }}
+                                {% else %}
+                                <span class="text-white/20">never</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">
+                                {% if u.last_error %}
+                                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-900/60 text-red-300 uppercase cursor-help" title="{{ u.last_error }}">Error</span>
+                                {% elif u.total_calls > 0 %}
+                                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-green-900/60 text-green-300 uppercase">Active</span>
+                                {% elif u.last_verified_at %}
+                                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-900/60 text-amber-300 uppercase">Verified</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-white/10 text-white/40 uppercase">Configured</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tools breakdown -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 p-6">
+            <h3 class="text-sm font-heading font-medium text-white mb-4">Tools used per user</h3>
+            <div class="space-y-2">
+                {% for u in users if u.tools_used %}
+                <div class="flex items-start gap-3 text-sm">
+                    <span class="text-white/40 w-48 flex-shrink-0 truncate" title="{{ u.email }}">{{ u.email }}</span>
+                    <div class="flex flex-wrap gap-1">
+                        {% for tool in u.tools_used|sort %}
+                        <span class="px-1.5 py-0.5 text-[10px] rounded bg-white/5 text-white/50 border border-white/10">{{ tool }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let sortCol = -1, sortAsc = true;
+function sortTable(col, numeric = false) {
+    const table = document.getElementById('users-table');
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (sortCol === col) sortAsc = !sortAsc;
+    else { sortCol = col; sortAsc = true; }
+    rows.sort((a, b) => {
+        const cellA = a.children[col], cellB = b.children[col];
+        let valA = cellA.getAttribute('data-sort') || cellA.textContent.trim();
+        let valB = cellB.getAttribute('data-sort') || cellB.textContent.trim();
+        if (numeric) { valA = parseInt(valA) || 0; valB = parseInt(valB) || 0; return sortAsc ? valA - valB : valB - valA; }
+        return sortAsc ? valA.toLowerCase().localeCompare(valB.toLowerCase()) : valB.toLowerCase().localeCompare(valA.toLowerCase());
+    });
+    rows.forEach(r => tbody.appendChild(r));
+    table.querySelectorAll('thead th').forEach((th, i) => {
+        th.textContent = th.textContent.replace(/ [▲▼]$/, '');
+        if (i === col) th.textContent += sortAsc ? ' ▲' : ' ▼';
+    });
+}
+
+function filterTable() {
+    const search = document.getElementById('search').value.toLowerCase();
+    const hosting = document.getElementById('filter-hosting').value;
+    const status = document.getElementById('filter-status').value;
+    document.querySelectorAll('#users-table tbody tr').forEach(row => {
+        let show = true;
+        if (search && !row.dataset.email.includes(search) && !row.dataset.url.includes(search) && !row.dataset.hosting.includes(search)) show = false;
+        if (hosting) { if (hosting === 'unknown' && row.dataset.hosting !== 'unknown') show = false; else if (hosting !== 'unknown' && row.dataset.hosting !== hosting) show = false; }
+        if (status === 'active' && parseInt(row.dataset.calls) === 0) show = false;
+        if (status === 'inactive' && parseInt(row.dataset.calls) > 0) show = false;
+        if (status === 'error' && row.dataset.error !== 'yes') show = false;
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+function exportCSV() {
+    const rows = document.querySelectorAll('#users-table tbody tr');
+    let csv = 'Email,Odoo URL,Hosting,Version,Calls,Registered,Last Active,Status\n';
+    rows.forEach(row => {
+        if (row.style.display === 'none') return;
+        const cells = row.querySelectorAll('td');
+        csv += [row.dataset.email, row.dataset.url, row.dataset.hosting, cells[3].textContent.trim(), row.dataset.calls, cells[5].textContent.trim(), cells[6].textContent.trim(), cells[7].textContent.trim()].map(v => '"' + (v||'').replace(/"/g,'""') + '"').join(',') + '\n';
+    });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    a.download = 'odoo-mcp-users-' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+}
+
+sortTable(4, true); sortAsc = false; sortTable(4, true);
+</script>
+{% endblock %}

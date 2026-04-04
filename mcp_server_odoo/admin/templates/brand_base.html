@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Odoo MCP{% endblock %} - Pantalytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'Lexend';
+            src: url('https://brand.pantalytics.com/fonts/Lexend-Medium.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Regular.woff2') format('woff2');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Medium.woff2') format('woff2');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'Instrument Sans';
+            src: url('https://brand.pantalytics.com/fonts/InstrumentSans-Bold.woff2') format('woff2');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            bg: '#001d21',
+                            surface: '#002328',
+                            accent: '#9b99ff',
+                            'accent-hover': '#7370ff',
+                        },
+                    },
+                    fontFamily: {
+                        heading: ['Lexend', 'sans-serif'],
+                        body: ['Instrument Sans', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="h-full bg-brand-bg font-body">
+    <div class="min-h-full flex">
+
+        <!-- Sidebar -->
+        <aside class="hidden lg:flex lg:flex-col lg:w-56 lg:fixed lg:inset-y-0 bg-brand-surface border-r border-white/10">
+            <!-- Logo -->
+            <div class="flex items-center h-14 px-5">
+                <img src="https://brand.pantalytics.com/images/logo/icon-blue.png" alt="Pantalytics" class="w-7 h-7">
+                <span class="text-base font-heading font-medium text-white ml-3">Odoo MCP</span>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 px-3 py-2 space-y-0.5">
+                <a href="/admin/setup" class="flex items-center px-3 py-2 text-[13px] rounded-lg transition-colors {% if active_nav == 'setup' %}bg-white/10 text-white{% else %}text-white/50 hover:text-white hover:bg-white/5{% endif %}">
+                    <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                    </svg>
+                    My Connection
+                </a>
+                <a href="/admin/team" class="flex items-center px-3 py-2 text-[13px] rounded-lg transition-colors {% if active_nav == 'team' %}bg-white/10 text-white{% else %}text-white/50 hover:text-white hover:bg-white/5{% endif %}">
+                    <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    Team
+                </a>
+                {% if is_admin %}
+                <div class="pt-3 mt-3 border-t border-white/10">
+                    <p class="px-3 mb-1.5 text-[10px] font-semibold text-white/25 uppercase tracking-wider">Admin</p>
+                    <a href="/admin/dashboard" class="flex items-center px-3 py-2 text-[13px] rounded-lg transition-colors {% if active_nav == 'dashboard' %}bg-white/10 text-white{% else %}text-white/50 hover:text-white hover:bg-white/5{% endif %}">
+                        <svg class="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        Dashboard
+                    </a>
+                </div>
+                {% endif %}
+            </nav>
+
+            <!-- Beta badge -->
+            <div class="px-5 py-3 border-t border-white/10">
+                <div class="flex items-center gap-2">
+                    <span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-green-900/60 text-green-300 uppercase">Beta</span>
+                    <span class="text-[11px] text-white/25">Free during beta</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main area -->
+        <div class="flex-1 lg:pl-56 flex flex-col min-h-screen">
+
+            <!-- Top bar -->
+            <header class="sticky top-0 z-40 h-14 bg-brand-bg/80 backdrop-blur-lg border-b border-white/5">
+                <div class="flex items-center justify-between h-full px-6">
+                    <!-- Mobile hamburger -->
+                    <button onclick="document.getElementById('mobile-sidebar').classList.toggle('hidden')" class="lg:hidden text-white/60 hover:text-white mr-4">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+
+                    <div class="flex-1"></div>
+
+                    <!-- Profile dropdown -->
+                    <div class="relative">
+                        <button onclick="document.getElementById('profile-menu').classList.toggle('hidden')" class="flex items-center gap-2 hover:bg-white/5 rounded-lg px-2 py-1.5 transition-colors">
+                            <div class="w-7 h-7 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent text-xs font-bold">
+                                {{ (user.email or 'U')[0]|upper }}
+                            </div>
+                            <span class="text-sm text-white/60 hidden sm:block">{{ user.email }}</span>
+                            <svg class="w-3.5 h-3.5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+                        <div id="profile-menu" class="hidden absolute right-0 mt-1 w-48 bg-brand-surface border border-white/10 rounded-lg shadow-xl py-1 z-50">
+                            <div class="px-3 py-2 border-b border-white/10">
+                                <p class="text-xs text-white/40 truncate">{{ user.email }}</p>
+                            </div>
+                            <a href="/admin/logout" class="flex items-center px-3 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 transition-colors">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                                </svg>
+                                Sign out
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Mobile sidebar overlay -->
+            <div id="mobile-sidebar" class="hidden lg:hidden fixed inset-0 z-50">
+                <div class="fixed inset-0 bg-black/60" onclick="document.getElementById('mobile-sidebar').classList.add('hidden')"></div>
+                <div class="fixed inset-y-0 left-0 w-56 bg-brand-surface border-r border-white/10">
+                    <div class="flex items-center h-14 px-5 border-b border-white/10">
+                        <img src="https://brand.pantalytics.com/images/logo/icon-blue.png" alt="" class="w-6 h-6">
+                        <span class="text-sm font-heading font-medium text-white ml-3">Odoo MCP</span>
+                    </div>
+                    <nav class="px-3 py-4 space-y-0.5">
+                        <a href="/admin/setup" class="flex items-center px-3 py-2 text-[13px] rounded-lg {% if active_nav == 'setup' %}bg-white/10 text-white{% else %}text-white/50 hover:text-white hover:bg-white/5{% endif %}">My Connection</a>
+                        <a href="/admin/team" class="flex items-center px-3 py-2 text-[13px] rounded-lg {% if active_nav == 'team' %}bg-white/10 text-white{% else %}text-white/50 hover:text-white hover:bg-white/5{% endif %}">Team</a>
+                        {% if is_admin %}
+                        <a href="/admin/dashboard" class="flex items-center px-3 py-2 text-[13px] rounded-lg {% if active_nav == 'dashboard' %}bg-white/10 text-white{% else %}text-white/50 hover:text-white hover:bg-white/5{% endif %}">Dashboard</a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Page content -->
+            <div class="flex-1">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+<script>
+// Close profile dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('profile-menu');
+    if (menu && !e.target.closest('.relative')) menu.classList.add('hidden');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+{% extends "brand_base.html" %}
+{% block title %}Team{% endblock %}
+
+{% block content %}
+<div class="px-6 lg:px-8 py-8">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+        {% if not connection %}
+        <!-- No connection yet -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 p-8 text-center">
+            <svg class="w-12 h-12 text-white/20 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <h2 class="text-base font-heading font-medium text-white mb-2">Set up your connection first</h2>
+            <p class="text-sm text-white/40 mb-4">Connect your Odoo instance before inviting team members.</p>
+            <a href="/admin/setup" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-brand-accent text-white hover:bg-brand-accent-hover transition-colors">
+                Go to My Connection
+            </a>
+        </div>
+
+        {% else %}
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-heading font-medium text-white">Team</h1>
+                <p class="text-sm text-white/40 mt-1">
+                    {% if team %}
+                    <span class="text-white/60">{{ team.name }}</span> &middot;
+                    {% endif %}
+                    {{ team_members|length }} member{{ 's' if team_members|length != 1 else '' }}
+                </p>
+            </div>
+            {% if is_team_admin %}
+            <button onclick="document.getElementById('invite-modal').classList.remove('hidden')" class="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg bg-brand-accent text-white hover:bg-brand-accent-hover transition-colors">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                </svg>
+                Invite Member
+            </button>
+            {% endif %}
+        </div>
+
+        <!-- Pending invites -->
+        {% if is_team_admin and pending_invites %}
+        <div class="bg-brand-surface rounded-xl border border-white/10 overflow-hidden">
+            <div class="px-6 py-3 border-b border-white/10">
+                <h3 class="text-xs font-semibold text-white/40 uppercase tracking-wider">Pending Invites</h3>
+            </div>
+            <div class="divide-y divide-white/5">
+                {% for inv in pending_invites %}
+                <div class="flex items-center px-6 py-3">
+                    <div class="w-8 h-8 rounded-full bg-amber-900/30 flex items-center justify-center text-amber-300 text-xs font-bold flex-shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4 min-w-0 flex-1">
+                        <p class="text-sm text-white/60">{{ inv.email }}</p>
+                        <p class="text-xs text-white/25 mt-0.5">Expires {{ inv.expires_at.strftime('%d %b %Y') }}</p>
+                    </div>
+                    <div class="ml-4 flex items-center gap-2">
+                        <button onclick="copyInviteLink('{{ base_url }}/admin/invite/{{ inv.invite_token }}')" class="px-2 py-1 text-xs text-brand-accent hover:text-brand-accent-hover transition-colors" title="Copy invite link">
+                            <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                            Copy link
+                        </button>
+                        <form method="post" action="/admin/team/revoke-invite" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="invite_id" value="{{ inv.id }}">
+                            <button type="submit" class="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition-colors" title="Revoke invite">Revoke</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Team members -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 overflow-hidden">
+            <div class="px-6 py-3 border-b border-white/10">
+                <h3 class="text-xs font-semibold text-white/40 uppercase tracking-wider">Members</h3>
+            </div>
+            <div class="divide-y divide-white/5">
+                {% for member in team_members %}
+                <div class="flex items-center px-6 py-4 hover:bg-white/5 transition-colors">
+                    <!-- Avatar -->
+                    <div class="w-9 h-9 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent text-sm font-bold flex-shrink-0">
+                        {{ (member.email or 'U')[0]|upper }}
+                    </div>
+
+                    <!-- Info -->
+                    <div class="ml-4 min-w-0 flex-1">
+                        <p class="text-sm text-white truncate">
+                            {{ member.email }}
+                            {% if member.zitadel_sub == user.sub %}
+                            <span class="text-white/25">(you)</span>
+                            {% endif %}
+                        </p>
+                        <p class="text-xs text-white/30 mt-0.5">
+                            Joined {{ member.created_at.strftime('%d %b %Y') if member.created_at else 'unknown' }}
+                            {% if member.total_calls > 0 %}
+                            &middot; {{ member.total_calls }} calls
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <!-- Role badge + status -->
+                    <div class="ml-4 flex items-center gap-2">
+                        {% if member.team_role == 'admin' %}
+                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-brand-accent/20 text-brand-accent uppercase">Admin</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-white/5 text-white/40 uppercase">Member</span>
+                        {% endif %}
+
+                        {% if member.last_error %}
+                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-red-900/60 text-red-300 uppercase cursor-help" title="{{ member.last_error }}">Error</span>
+                        {% elif member.total_calls > 0 %}
+                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-green-900/60 text-green-300 uppercase">Active</span>
+                        {% elif member.last_verified_at %}
+                        <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-900/60 text-amber-300 uppercase">Verified</span>
+                        {% endif %}
+
+                        <!-- Remove button (team admin only, not for yourself) -->
+                        {% if is_team_admin and member.zitadel_sub != user.sub %}
+                        <form method="post" action="/admin/team/remove" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="member_id" value="{{ member.id }}">
+                            <button type="submit" onclick="return confirm('Remove {{ member.email }} from the team?')"
+                                    class="p-1 text-white/20 hover:text-red-400 transition-colors" title="Remove member">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- How teams work -->
+        <div class="bg-brand-surface rounded-xl border border-white/10 p-6">
+            <h3 class="text-sm font-heading font-medium text-white mb-3">How teams work</h3>
+            <div class="space-y-3 text-sm text-white/50">
+                <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 text-brand-accent mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/>
+                    </svg>
+                    <span>Everyone connected to the same Odoo instance is part of the same team.</span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 text-brand-accent mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                    </svg>
+                    <span>Each member uses their own Odoo API key &mdash; permissions follow their Odoo user account.</span>
+                </div>
+                <div class="flex items-start gap-3">
+                    <svg class="w-4 h-4 text-brand-accent mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    <span>New members can only join via invite link from a team admin.</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<!-- Invite Modal -->
+{% if is_team_admin %}
+<div id="invite-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+    <div class="fixed inset-0 bg-black/60" onclick="document.getElementById('invite-modal').classList.add('hidden')"></div>
+    <div class="relative bg-brand-surface border border-white/10 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <h3 class="text-base font-heading font-medium text-white mb-1">Invite team member</h3>
+        <p class="text-sm text-white/40 mb-4">They'll receive a link to set up their own connection to {{ team.name if team else 'your Odoo instance' }}.</p>
+
+        <form method="post" action="/admin/team/invite">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-white/60 mb-1">Email address</label>
+                    <input type="email" name="email" required placeholder="colleague@company.com"
+                           class="w-full px-3 py-2 text-sm rounded-lg border border-white/10 bg-brand-bg text-white placeholder-white/30 focus:ring-2 focus:ring-brand-accent focus:border-transparent">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button" onclick="document.getElementById('invite-modal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
+                <button type="submit"
+                        class="px-4 py-2 text-sm font-medium rounded-lg bg-brand-accent text-white hover:bg-brand-accent-hover transition-colors">Create Invite</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function copyInviteLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        // Brief visual feedback
+        const btn = event.target.closest('button');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';
+        setTimeout(() => { btn.innerHTML = original; }, 2000);
+    });
+}
+</script>
+{% endblock %}

@@ -55,8 +55,8 @@ class TestOdooToolHandler:
             url="http://localhost:8069",
             api_key="test_api_key",
             database="test_db",
-            default_limit=10,
-            max_limit=100,
+            default_limit=100,
+            max_limit=500,
         )
 
     @pytest.fixture
@@ -630,9 +630,9 @@ class TestOdooToolHandler:
         search_records = mock_app._tools["search_records"]
 
         # Test with limit exceeding max
-        result = await search_records(model="res.partner", limit=500)
+        result = await search_records(model="res.partner", limit=9999)
 
-        # Should use default limit since 500 > max_limit (SearchResult is a Pydantic model)
+        # Should use default limit since 9999 > max_limit (SearchResult is a Pydantic model)
         assert result.limit == valid_config.default_limit
 
         # Test with negative limit

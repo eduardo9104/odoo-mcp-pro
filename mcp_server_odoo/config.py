@@ -27,8 +27,8 @@ class OdooConfig:
     # Optional fields with defaults
     database: Optional[str] = None
     log_level: str = "INFO"
-    default_limit: int = 10
-    max_limit: int = 100
+    default_limit: int = 100
+    max_limit: int = 500
     max_smart_fields: int = 15
 
     # MCP transport configuration
