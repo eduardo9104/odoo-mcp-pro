@@ -17,11 +17,14 @@ See [architecture.md](architecture.md) for technical details.
 
 ## Key architecture facts
 
-- 1 Zitadel org = 1 Odoo instance (mapped via tenants table in Postgres)
+- Teams grouped by Odoo URL in `teams` table; first user = team admin
+- Invites: token-based with 7-day expiry in `invites` table
 - Each user has their own Odoo API key (encrypted at rest with Fernet)
 - ConnectionRegistry caches connections per user (30 min TTL)
 - Admin panel routes mounted directly into MCP SDK's Starlette app (not wrapped separately)
 - Connection factory: `OdooJSON2Connection` (Odoo 19+) / `OdooConnection` (Odoo 14-18, XML-RPC)
+- Blue-green deploy: `deploy.sh` alternates mcp-blue/mcp-green for zero-downtime
+- PostHog analytics: opt-in via `POSTHOG_API_KEY` env var (server-side, tool calls only)
 
 ## JSON/2 API key points
 
@@ -49,8 +52,9 @@ pytest tests/ -x -q         # unit tests (mocked), stop on first failure
 - Both connection classes must satisfy `OdooConnectionProtocol`
 - Shared exceptions live in `exceptions.py`
 - No new dependencies without discussion (httpx already available)
-- Admin panel: Jinja2 templates + Tailwind CSS (via CDN)
-- Terminology: Tenant = Odoo instance linked to Zitadel org; UserConnection = user's API key for a tenant
+- Admin panel: Jinja2 templates extending `brand_base.html` + Tailwind CSS (via CDN)
+- Terminology: Team = users sharing an Odoo URL; UserConnection = user's API key
+- Deploy: `ssh root@89.167.90.254 "cd /opt/odoo-mcp-pro/deploy && ./deploy.sh"`
 
 ## Key files
 
@@ -58,8 +62,9 @@ pytest tests/ -x -q         # unit tests (mocked), stop on first failure
 |------|------|
 | `server.py` | Factory pattern, OAuth wiring, FastMCP setup |
 | `registry.py` | ConnectionRegistry -- maps users to Odoo connections |
-| `admin/routes.py` | Self-service setup + admin routes |
-| `admin/db.py` | Postgres DatabaseManager |
+| `admin/routes.py` | Setup, team, invite, and dashboard routes |
+| `admin/db.py` | Postgres DatabaseManager (teams, invites, usage) |
+| `usage.py` | Usage tracking, rate limiting, PostHog events |
 | `admin/auth.py` | OAuth login flow, session cookies, CSRF |
 | `odoo_json2_connection.py` | JSON/2 client (httpx, Odoo 19+) |
 | `odoo_connection.py` | XML-RPC client (stdlib, Odoo 14-18) |
