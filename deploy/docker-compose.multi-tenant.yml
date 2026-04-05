@@ -67,6 +67,8 @@ services:
       ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET}
       # Encryption
       API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY}
+      # Analytics (optional — omit to disable)
+      POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
       # Transport
       ODOO_MCP_TRANSPORT: streamable-http
       ODOO_MCP_HOST: "0.0.0.0"

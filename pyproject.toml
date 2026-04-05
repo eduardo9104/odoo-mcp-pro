@@ -41,6 +41,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "uvicorn>=0.32.0",
     "cryptography>=41.0.0",
+    "posthog>=3.0.0",
 ]
 
 [project.urls]

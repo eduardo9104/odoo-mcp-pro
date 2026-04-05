@@ -3,10 +3,13 @@
 Tracks per-user tool usage in Postgres and enforces daily rate limits.
 Uses an in-memory cache to avoid a DB round-trip on every call.
 Recording is fire-and-forget so tool calls are never slowed by tracking.
+
+Optional PostHog integration: set POSTHOG_API_KEY env var to enable.
 """
 
 import asyncio
 import logging
+import os
 from datetime import date
 from typing import Optional
 
@@ -18,6 +21,32 @@ logger = logging.getLogger(__name__)
 
 # Default daily limit when user has no plan assigned
 DEFAULT_DAILY_LIMIT = 1000
+
+
+def _init_posthog():
+    """Initialize PostHog client if API key is configured."""
+    api_key = os.getenv("POSTHOG_API_KEY", "").strip()
+    if not api_key:
+        return None
+    try:
+        from posthog import Posthog
+        client = Posthog(api_key, host="https://eu.i.posthog.com")
+        logger.info("PostHog analytics enabled")
+        return client
+    except Exception:
+        logger.warning("PostHog import failed — analytics disabled")
+        return None
+
+
+_posthog_client = None
+
+
+def _get_posthog():
+    """Lazy-init PostHog client (called once on first use)."""
+    global _posthog_client
+    if _posthog_client is None:
+        _posthog_client = _init_posthog() or False  # False = tried and failed/disabled
+    return _posthog_client if _posthog_client is not False else None
 
 
 class RateLimitExceeded(ValidationError):
@@ -129,6 +158,22 @@ class UsageTracker:
 
         except Exception:
             logger.exception(f"Failed to record usage for {zitadel_sub}")
+
+        # PostHog event (non-blocking, failures silenced)
+        try:
+            ph = _get_posthog()
+            if ph:
+                ph.capture(
+                    distinct_id=zitadel_sub,
+                    event="mcp_tool_called",
+                    properties={
+                        "tool_name": tool_name,
+                        "error": error,
+                        "duration_ms": duration_ms,
+                    },
+                )
+        except Exception:
+            pass  # never let analytics break tool calls
 
     def record_usage_fire_and_forget(
         self,
