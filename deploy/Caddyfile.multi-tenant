@@ -1,7 +1,7 @@
 (mcp_upstream) {
     reverse_proxy mcp-blue:8000 mcp-green:8000 {
         lb_policy first
-        health_uri /mcp
+        health_uri /.well-known/oauth-protected-resource
         health_interval 5s
         health_timeout 3s
     }
