@@ -37,17 +37,25 @@ services:
       timeout: 3s
       retries: 5
 
-  mcp-server:
+  # Blue-green MCP servers for zero-downtime deploys.
+  # Use deploy.sh to deploy — it builds, starts the new one, then stops the old.
+  mcp-blue: &mcp-server
     build:
       context: ..
       dockerfile: Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
-    container_name: mcp-server
+    container_name: mcp-blue
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/mcp')"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       # Multi-tenant mode (triggers admin panel + registry)
       DATABASE_URL: postgresql://mcp:${POSTGRES_PASSWORD}@postgres:5432/mcp_admin
@@ -78,6 +86,10 @@ services:
     networks:
       - mcp-net
 
+  mcp-green:
+    <<: *mcp-server
+    container_name: mcp-green
+
   caddy:
     image: caddy:2-alpine
     container_name: mcp-caddy
@@ -93,8 +105,7 @@ services:
       - caddy_config:/config
     networks:
       - mcp-net
-    depends_on:
-      - mcp-server
+    # No depends_on — Caddy health-checks both upstreams and routes to whichever is up
 
 networks:
   mcp-net:

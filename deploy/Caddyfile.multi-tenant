@@ -1,18 +1,27 @@
+(mcp_upstream) {
+    reverse_proxy mcp-blue:8000 mcp-green:8000 {
+        lb_policy first
+        health_uri /mcp
+        health_interval 5s
+        health_timeout 3s
+    }
+}
+
 {$DOMAIN:mcp.example.com} {
     # Admin panel
     handle /admin/* {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
 
     # OAuth well-known endpoints (served by MCP server)
     handle /.well-known/oauth-authorization-server {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
     handle /.well-known/oauth-protected-resource {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
     handle /.well-known/oauth-protected-resource/* {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
 
     # Proxy OAuth endpoints to Zitadel
@@ -38,15 +47,15 @@
 
     # DCR endpoint (RFC 7591 — Claude.ai auto-registers here)
     handle /register {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
 
     # MCP endpoint
     handle /mcp {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
     handle /mcp/* {
-        reverse_proxy mcp-server:8000
+        import mcp_upstream
     }
 
     respond 404
