@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-05
+
+### Added
+- **Admin dashboard** (`/admin/dashboard`): super admin view with all users, usage stats, sort/filter, CSV export
+- **Teams**: users sharing the same Odoo instance are automatically grouped into a team
+- **Team roles**: first user to connect an Odoo URL becomes team admin; others are members
+- **Invite system**: team admins can create invite links (7-day expiry) for colleagues to join their team
+- **Team management**: team admins can remove members and revoke pending invites
+- **PostHog analytics**: server-side `mcp_tool_called` events (opt-in via `POSTHOG_API_KEY` env var, disabled for self-hosted)
+- **Blue-green deploy** (`deploy.sh`): zero-downtime deployments using alternating mcp-blue/mcp-green containers
+- **Dev login** (`/admin/login/dev`): instant admin login for local development (requires `ADMIN_DEV_LOGIN=true`)
+- **Brand layout** (`brand_base.html`): shared Pantalytics-branded template with sidebar navigation and avatar dropdown
+- **`?next=` redirect**: invite links redirect back after login
+
+### Changed
+- **Search default limit**: increased from 10 to 100 records (max raised to 500)
+- **Setup instructions**: added steps 4-6 explaining the Connect button, sign-in popup, and OAuth approval flow
+- **Reconnect tip**: setup page now notes to disconnect/reconnect when changing settings
+- **Admin panel layout**: all pages (My Connection, Team, Dashboard) share the sidebar layout with profile dropdown
+- **Caddy config**: uses `import mcp_upstream` snippet for DRY upstream definitions
+- **Health checks**: Caddy and Docker use `/.well-known/oauth-protected-resource` (not `/mcp` which returns 401)
+
+### Fixed
+- **URL normalization**: trailing slashes and paths (`/web`, `/odoo`) are stripped on save for consistent team matching
+
 ## [1.0.0] - 2026-03-27
 
 ### Added
