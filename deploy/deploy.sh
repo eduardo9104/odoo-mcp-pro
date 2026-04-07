@@ -49,4 +49,38 @@ done
 echo "==> Removing $OLD..."
 $COMPOSE rm -f -s $OLD
 
+# Smoke test: verify critical endpoints through Caddy
+DOMAIN="${DOMAIN:-mcp.pantalytics.com}"
+echo "==> Running smoke tests on $DOMAIN..."
+FAILED=0
+for ENDPOINT in \
+    "/.well-known/oauth-protected-resource" \
+    "/.well-known/oauth-authorization-server" \
+; do
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN$ENDPOINT" 2>/dev/null || echo "000")
+    if [ "$CODE" != "200" ]; then
+        echo "    FAIL: $ENDPOINT returned $CODE"
+        FAILED=1
+    else
+        echo "    OK: $ENDPOINT"
+    fi
+done
+
+# Test DCR endpoint (POST)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://$DOMAIN/register" \
+    -H "Content-Type: application/json" \
+    -d '{"redirect_uris":["https://test.example.com/cb"],"client_name":"smoke-test"}' 2>/dev/null || echo "000")
+if [ "$CODE" != "200" ]; then
+    echo "    FAIL: /register returned $CODE"
+    FAILED=1
+else
+    echo "    OK: /register"
+fi
+
+if [ "$FAILED" -eq 1 ]; then
+    echo "==> WARNING: Some smoke tests failed! Check Caddy logs."
+else
+    echo "==> All smoke tests passed"
+fi
+
 echo "==> Deploy complete: $NEW is live"
