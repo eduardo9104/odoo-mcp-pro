@@ -25,7 +25,7 @@ from .encryption import decrypt_api_key, encrypt_api_key
 logger = logging.getLogger(__name__)
 
 # Schema version for migrations
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA_SQL = """
 -- odoo-mcp-pro schema (c) Pantalytics B.V. -- pnl:a9c2e8
@@ -120,6 +120,18 @@ CREATE TABLE IF NOT EXISTS invites (
     created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_invites_token ON invites (invite_token);
+
+-- v8: Connection profiles (quick-switch between Odoo instances)
+CREATE TABLE IF NOT EXISTS connection_profiles (
+    id           SERIAL PRIMARY KEY,
+    zitadel_sub  TEXT NOT NULL,
+    label        TEXT NOT NULL,
+    odoo_url     TEXT NOT NULL,
+    odoo_api_key TEXT NOT NULL,
+    odoo_db      TEXT,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_profiles_sub ON connection_profiles (zitadel_sub);
 """
 
 INVITE_EXPIRY_DAYS = 7
@@ -201,6 +213,17 @@ class Invite:
         return not self.is_accepted and not self.is_expired
 
 
+@dataclass
+class ConnectionProfile:
+    id: int
+    zitadel_sub: str
+    label: str
+    odoo_url: str
+    odoo_api_key: str
+    odoo_db: Optional[str]
+    created_at: datetime
+
+
 def get_database_url() -> str:
     """Get PostgreSQL connection URL from environment."""
     return os.getenv(
@@ -243,6 +266,9 @@ class DatabaseManager:
 
             # v7 backfill: create teams from existing user_connections grouped by odoo_url
             await self._backfill_teams(conn)
+
+            # v8 backfill: create profiles from existing user_connections
+            await self._backfill_profiles(conn)
 
         # Bootstrap admin if configured
         bootstrap_sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "").strip()
@@ -287,6 +313,28 @@ class DatabaseManager:
                     "UPDATE user_connections SET team_id = $1, team_role = 'member' WHERE id = $2",
                     team["id"], row["id"],
                 )
+
+    async def _backfill_profiles(self, conn):
+        """Create profiles from existing user_connections that don't have one (idempotent)."""
+        rows = await conn.fetch("""
+            SELECT uc.zitadel_sub, uc.odoo_url, uc.odoo_api_key, uc.odoo_db
+            FROM user_connections uc
+            WHERE NOT EXISTS (
+                SELECT 1 FROM connection_profiles cp WHERE cp.zitadel_sub = uc.zitadel_sub
+            )
+        """)
+        if not rows:
+            return
+
+        logger.info(f"Backfilling profiles for {len(rows)} user connections")
+        for row in rows:
+            label = _team_name_from_url(row["odoo_url"])
+            await conn.execute(
+                """INSERT INTO connection_profiles (zitadel_sub, label, odoo_url, odoo_api_key, odoo_db)
+                   VALUES ($1, $2, $3, $4, $5)""",
+                row["zitadel_sub"], label, _normalize_odoo_url(row["odoo_url"]),
+                row["odoo_api_key"], row["odoo_db"],
+            )
 
     # --- User Connections (self-service, one per user) ---
 
@@ -567,6 +615,69 @@ class DatabaseManager:
             result = await conn.execute(
                 "DELETE FROM invites WHERE id = $1 AND team_id = $2 AND accepted_at IS NULL",
                 invite_id, team_id,
+            )
+            return result == "DELETE 1"
+
+    # --- Connection Profiles ---
+
+    async def upsert_profile(
+        self, zitadel_sub: str, label: str, odoo_url: str, odoo_api_key: str, odoo_db: Optional[str] = None
+    ) -> ConnectionProfile:
+        """Save or update a connection profile."""
+        encrypted_key = encrypt_api_key(odoo_api_key)
+        normalized_url = _normalize_odoo_url(odoo_url)
+        async with self._pool.acquire() as conn:
+            # Check if profile with same label exists for this user
+            existing = await conn.fetchrow(
+                "SELECT id FROM connection_profiles WHERE zitadel_sub = $1 AND label = $2",
+                zitadel_sub, label,
+            )
+            if existing:
+                row = await conn.fetchrow(
+                    """UPDATE connection_profiles SET odoo_url = $3, odoo_api_key = $4, odoo_db = $5
+                       WHERE id = $1 AND zitadel_sub = $2 RETURNING *""",
+                    existing["id"], zitadel_sub, normalized_url, encrypted_key, odoo_db,
+                )
+            else:
+                row = await conn.fetchrow(
+                    """INSERT INTO connection_profiles (zitadel_sub, label, odoo_url, odoo_api_key, odoo_db)
+                       VALUES ($1, $2, $3, $4, $5) RETURNING *""",
+                    zitadel_sub, label, normalized_url, encrypted_key, odoo_db,
+                )
+            profile = ConnectionProfile(**dict(row))
+            profile.odoo_api_key = decrypt_api_key(profile.odoo_api_key)
+            return profile
+
+    async def list_profiles(self, zitadel_sub: str) -> List[ConnectionProfile]:
+        """List all saved profiles for a user."""
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM connection_profiles WHERE zitadel_sub = $1 ORDER BY created_at",
+                zitadel_sub,
+            )
+            profiles = [ConnectionProfile(**dict(r)) for r in rows]
+            for p in profiles:
+                p.odoo_api_key = decrypt_api_key(p.odoo_api_key)
+            return profiles
+
+    async def get_profile(self, profile_id: int, zitadel_sub: str) -> Optional[ConnectionProfile]:
+        """Get a specific profile (owned by user)."""
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM connection_profiles WHERE id = $1 AND zitadel_sub = $2",
+                profile_id, zitadel_sub,
+            )
+            if not row:
+                return None
+            profile = ConnectionProfile(**dict(row))
+            profile.odoo_api_key = decrypt_api_key(profile.odoo_api_key)
+            return profile
+
+    async def delete_profile(self, profile_id: int, zitadel_sub: str) -> bool:
+        async with self._pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM connection_profiles WHERE id = $1 AND zitadel_sub = $2",
+                profile_id, zitadel_sub,
             )
             return result == "DELETE 1"
 

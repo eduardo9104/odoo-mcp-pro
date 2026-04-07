@@ -74,6 +74,9 @@ def register_admin_routes(app, db_manager):
         if connection and connection.odoo_api_key:
             api_key_suffix = connection.odoo_api_key[-3:]
 
+        # Load saved profiles
+        profiles = await db_manager.list_profiles(user["sub"])
+
         return templates.TemplateResponse(
             "setup.html",
             {
@@ -81,6 +84,7 @@ def register_admin_routes(app, db_manager):
                 "user": user,
                 "is_admin": await _is_admin(user),
                 "connection": connection,
+                "profiles": profiles,
                 "api_key_suffix": api_key_suffix,
                 "mcp_server_url": mcp_server_url,
                 "csrf_token": generate_csrf_token(user),
@@ -140,6 +144,23 @@ def register_admin_routes(app, db_manager):
                 email=user.get("email"),
                 odoo_db=odoo_db or None,
             )
+            # Auto-save as profile (label = domain name)
+            from urllib.parse import urlparse
+            label = form.get("profile_label", "").strip()
+            if not label:
+                parsed_host = urlparse(odoo_url).hostname or odoo_url
+                label = parsed_host.replace(".odoo.com", "").replace("www.", "")
+            await db_manager.upsert_profile(
+                zitadel_sub=user["sub"],
+                label=label,
+                odoo_url=odoo_url,
+                odoo_api_key=odoo_api_key,
+                odoo_db=odoo_db or None,
+            )
+            # Invalidate registry cache so next MCP call uses new connection
+            registry = request.app.state.registry
+            if registry:
+                registry.revoke_user(user["sub"])
             logger.info(f"User {user['email']} saved connection to {odoo_url}")
             return RedirectResponse(url="/admin/setup", status_code=302)
         except Exception as e:
@@ -159,6 +180,60 @@ def register_admin_routes(app, db_manager):
 
         await db_manager.delete_user_connection_by_sub(user["sub"])
         logger.info(f"User {user['email']} removed their connection")
+        return RedirectResponse(url="/admin/setup", status_code=302)
+
+    @app.post("/setup/switch")
+    @require_login
+    async def setup_switch_profile(request: Request):
+        """Switch to a saved connection profile."""
+        user = request.state.user
+        form = await request.form()
+
+        csrf_token = form.get("csrf_token", "")
+        if not validate_csrf_token(csrf_token):
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        profile_id = form.get("profile_id", "")
+        if not profile_id:
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        profile = await db_manager.get_profile(int(profile_id), user["sub"])
+        if not profile:
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        # Update active connection from profile
+        await db_manager.upsert_user_connection(
+            zitadel_sub=user["sub"],
+            odoo_url=profile.odoo_url,
+            odoo_api_key=profile.odoo_api_key,
+            email=user.get("email"),
+            odoo_db=profile.odoo_db,
+        )
+
+        # Invalidate registry cache for immediate effect
+        registry = request.app.state.registry
+        if registry:
+            registry.revoke_user(user["sub"])
+
+        logger.info(f"User {user['email']} switched to profile '{profile.label}'")
+        return RedirectResponse(url="/admin/setup", status_code=302)
+
+    @app.post("/setup/delete-profile")
+    @require_login
+    async def setup_delete_profile(request: Request):
+        """Delete a saved connection profile."""
+        user = request.state.user
+        form = await request.form()
+
+        csrf_token = form.get("csrf_token", "")
+        if not validate_csrf_token(csrf_token):
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        profile_id = form.get("profile_id", "")
+        if profile_id:
+            await db_manager.delete_profile(int(profile_id), user["sub"])
+            logger.info(f"User {user['email']} deleted profile {profile_id}")
+
         return RedirectResponse(url="/admin/setup", status_code=302)
 
     @app.post("/setup/verify")
