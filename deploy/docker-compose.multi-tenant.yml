@@ -73,6 +73,7 @@ services:
       ZITADEL_INTROSPECTION_URL: ${ZITADEL_INTROSPECTION_URL}
       ZITADEL_CLIENT_ID: ${ZITADEL_CLIENT_ID}
       ZITADEL_CLIENT_SECRET: ${ZITADEL_CLIENT_SECRET}
+      ZITADEL_ORG_ID: ${ZITADEL_ORG_ID}
       # Encryption
       API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY}
       # Analytics (optional — omit to disable)
@@ -99,6 +100,7 @@ services:
       - "443:443"
     environment:
       DOMAIN: ${DOMAIN:-mcp.example.com}
+      ZITADEL_HOST: ${ZITADEL_HOST}
     volumes:
       - ./Caddyfile.multi-tenant:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

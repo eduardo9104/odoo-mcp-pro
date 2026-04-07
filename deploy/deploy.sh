@@ -66,6 +66,15 @@ for ENDPOINT in \
     fi
 done
 
+# Test OAuth proxy to Zitadel (should return 302 or 400, NOT 404/502)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://$DOMAIN/authorize?response_type=code&client_id=test" 2>/dev/null || echo "000")
+if [ "$CODE" = "404" ] || [ "$CODE" = "502" ] || [ "$CODE" = "000" ]; then
+    echo "    FAIL: /authorize returned $CODE (Zitadel proxy broken)"
+    FAILED=1
+else
+    echo "    OK: /authorize (returned $CODE)"
+fi
+
 # Test DCR endpoint (POST)
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://$DOMAIN/register" \
     -H "Content-Type: application/json" \

@@ -29,18 +29,18 @@
     # ignoring authorization_endpoint/token_endpoint from metadata
     handle /authorize* {
         uri replace /authorize /oauth/v2/authorize
-        reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
+        reverse_proxy {$ZITADEL_HOST} {
             header_up Host {upstream_hostport}
         }
     }
     handle /token* {
         uri replace /token /oauth/v2/token
-        reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
+        reverse_proxy {$ZITADEL_HOST} {
             header_up Host {upstream_hostport}
         }
     }
     handle /oauth/v2/* {
-        reverse_proxy {$ZITADEL_HOST:odoo-mcp-pro-x4tprs.us1.zitadel.cloud} {
+        reverse_proxy {$ZITADEL_HOST} {
             header_up Host {upstream_hostport}
         }
     }
