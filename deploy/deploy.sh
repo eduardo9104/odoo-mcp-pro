@@ -49,6 +49,9 @@ done
 echo "==> Removing $OLD..."
 $COMPOSE rm -f -s $OLD
 
+# Wait for Caddy to pick up the new upstream
+sleep 5
+
 # Smoke test: verify critical endpoints through Caddy
 DOMAIN="${DOMAIN:-mcp.pantalytics.com}"
 echo "==> Running smoke tests on $DOMAIN..."
