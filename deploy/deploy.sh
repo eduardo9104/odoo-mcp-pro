@@ -45,8 +45,8 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
-# Stop the old container (Caddy auto-routes to the healthy one)
-echo "==> Stopping $OLD..."
-$COMPOSE stop $OLD
+# Remove the old container (stop + rm) so Caddy DNS doesn't try to resolve it
+echo "==> Removing $OLD..."
+$COMPOSE rm -f -s $OLD
 
 echo "==> Deploy complete: $NEW is live"
