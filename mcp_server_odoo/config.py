@@ -30,6 +30,8 @@ class OdooConfig:
     default_limit: int = 100
     max_limit: int = 500
     max_smart_fields: int = 15
+    # Max chars for text/html fields before truncation (0 = no truncation)
+    text_truncate_length: int = 500
 
     # MCP transport configuration
     transport: Literal["stdio", "streamable-http"] = "stdio"
@@ -194,6 +196,7 @@ def load_config(env_file: Optional[Path] = None) -> OdooConfig:
         default_limit=get_int_env("ODOO_MCP_DEFAULT_LIMIT", 10),
         max_limit=get_int_env("ODOO_MCP_MAX_LIMIT", 100),
         max_smart_fields=get_int_env("ODOO_MCP_MAX_SMART_FIELDS", 15),
+        text_truncate_length=get_int_env("ODOO_MCP_TEXT_TRUNCATE", 500),
         transport=os.getenv("ODOO_MCP_TRANSPORT", "stdio").strip(),
         host=os.getenv("ODOO_MCP_HOST", "localhost").strip(),
         port=get_int_env("ODOO_MCP_PORT", 8000),

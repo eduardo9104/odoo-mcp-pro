@@ -147,6 +147,50 @@ class OdooToolHandler:
 
         return value
 
+    def _compress_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        """Compress a record to reduce token usage.
+
+        Applies three transformations:
+        1. Strips False/None values (Odoo uses False for empty fields — pure noise).
+        2. Simplifies many2one tuples: [3, "Acme Corp"] → "Acme Corp".
+        3. Truncates long text/html strings to config.text_truncate_length.
+
+        Boolean fields that are intentionally False are preserved only when the
+        field name starts with "is_", "has_", or equals "active".
+        """
+        truncate = self.config.text_truncate_length if self.config else 500
+        keep_false_prefixes = ("is_", "has_", "active")
+        result = {}
+
+        for key, value in record.items():
+            # Strip False / None empty values (Odoo's representation of NULL)
+            if value is False:
+                if key == "active" or key.startswith(("is_", "has_")):
+                    result[key] = False  # keep intentional False booleans
+                # else: drop — it's just an empty field
+                continue
+            if value is None:
+                continue
+
+            # Simplify many2one: [id, "Name"] → "Name"
+            if (
+                isinstance(value, (list, tuple))
+                and len(value) == 2
+                and isinstance(value[0], int)
+                and isinstance(value[1], str)
+            ):
+                result[key] = value[1]
+                continue
+
+            # Truncate long strings
+            if isinstance(value, str) and truncate > 0 and len(value) > truncate:
+                result[key] = value[:truncate] + f"… [{len(value) - truncate} chars truncated]"
+                continue
+
+            result[key] = value
+
+        return result
+
     def _process_record_dates(
         self,
         record: Dict[str, Any],
@@ -475,7 +519,7 @@ class OdooToolHandler:
             model: str,
             domain: Optional[Any] = None,
             fields: Optional[Any] = None,
-            limit: int = 100,
+            limit: int = 0,
             offset: int = 0,
             order: Optional[str] = None,
         ) -> SearchResult:
@@ -492,7 +536,7 @@ class OdooToolHandler:
                     - A list: ["field1", "field2", ...] - Returns only specified fields
                     - A JSON string: '["field1", "field2"]' - Parsed to list
                     - ["__all__"] or '["__all__"]': Returns ALL fields (warning: may cause serialization errors)
-                limit: Maximum number of records to return
+                limit: Maximum number of records to return (0 = use server default, currently 10)
                 offset: Number of records to skip
                 order: Sort order (e.g., 'name asc')
 
@@ -920,9 +964,12 @@ class OdooToolHandler:
                 records = []
                 if record_ids:
                     records = connection.read(model, record_ids, fields_to_fetch)
-                    # Process datetime fields in each record
+                    # Process and compress each record
                     records = [
-                        self._process_record_dates(record, model, connection) for record in records
+                        self._compress_record(
+                            self._process_record_dates(record, model, connection)
+                        )
+                        for record in records
                     ]
 
                 return {
@@ -988,8 +1035,10 @@ class OdooToolHandler:
                 if not records:
                     raise ValidationError(f"Record not found: {model} with ID {record_id}")
 
-                # Process datetime fields in the record
-                record = self._process_record_dates(records[0], model, connection)
+                # Process and compress the record
+                record = self._compress_record(
+                    self._process_record_dates(records[0], model, connection)
+                )
 
                 # Build metadata when using smart defaults
                 metadata = None
@@ -1156,8 +1205,10 @@ class OdooToolHandler:
                         f"Failed to read created record: {model} with ID {record_id}"
                     )
 
-                # Process dates in the minimal record
-                record = self._process_record_dates(records[0], model, connection)
+                # Process and compress the minimal record
+                record = self._compress_record(
+                    self._process_record_dates(records[0], model, connection)
+                )
 
                 # Generate direct URL to the record in Odoo
                 base_url = (
@@ -1233,8 +1284,10 @@ class OdooToolHandler:
                         f"Failed to read updated record: {model} with ID {record_id}"
                     )
 
-                # Process dates in the minimal record
-                record = self._process_record_dates(records[0], model, connection)
+                # Process and compress the minimal record
+                record = self._compress_record(
+                    self._process_record_dates(records[0], model, connection)
+                )
 
                 # Generate direct URL to the record in Odoo
                 base_url = (

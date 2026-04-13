@@ -8,6 +8,7 @@ This module provides performance optimizations including:
 """
 
 import json
+import ssl
 import threading
 import time
 from collections import OrderedDict, defaultdict
@@ -271,9 +272,9 @@ class ConnectionPool:
         self._connections: List[Tuple[ServerProxy, float]] = []
         self._endpoint_map: List[str] = []  # Track endpoints for each connection
         self._lock = threading.RLock()
-        # Use SafeTransport for HTTPS, regular Transport for HTTP
+        # Use SafeTransport with explicit SSL context for HTTPS (cert verification on)
         if config.url.startswith("https://"):
-            self._transport = SafeTransport()
+            self._transport = SafeTransport(context=ssl.create_default_context())
         else:
             self._transport = Transport()
         self._last_cleanup = time.time()

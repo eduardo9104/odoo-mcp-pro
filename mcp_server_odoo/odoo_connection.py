@@ -114,22 +114,41 @@ class OdooConnection:
     def _create_transport(self) -> xmlrpc.client.Transport:
         """Create XML-RPC transport with timeout support.
 
+        Note: actual connections use the PerformanceManager's ConnectionPool
+        which selects SafeTransport (with ssl.create_default_context) for HTTPS
+        and Transport for HTTP. This method is retained for external callers.
+
         Returns:
             Configured Transport object
         """
+        import ssl
 
-        class TimeoutTransport(xmlrpc.client.Transport):
-            def __init__(self, timeout, *args, **kwargs):
-                self.timeout = timeout
-                super().__init__(*args, **kwargs)
+        if self._url_components.get("scheme") == "https":
+            class TimeoutSafeTransport(xmlrpc.client.SafeTransport):
+                def __init__(self, timeout, context, *args, **kwargs):
+                    self.timeout = timeout
+                    super().__init__(context=context, *args, **kwargs)
 
-            def make_connection(self, host):
-                connection = super().make_connection(host)
-                if hasattr(connection, "sock") and connection.sock:
-                    connection.sock.settimeout(self.timeout)
-                return connection
+                def make_connection(self, host):
+                    connection = super().make_connection(host)
+                    if hasattr(connection, "sock") and connection.sock:
+                        connection.sock.settimeout(self.timeout)
+                    return connection
 
-        return TimeoutTransport(self.timeout)
+            return TimeoutSafeTransport(self.timeout, ssl.create_default_context())
+        else:
+            class TimeoutTransport(xmlrpc.client.Transport):
+                def __init__(self, timeout, *args, **kwargs):
+                    self.timeout = timeout
+                    super().__init__(*args, **kwargs)
+
+                def make_connection(self, host):
+                    connection = super().make_connection(host)
+                    if hasattr(connection, "sock") and connection.sock:
+                        connection.sock.settimeout(self.timeout)
+                    return connection
+
+            return TimeoutTransport(self.timeout)
 
     def _build_endpoint_url(self, endpoint: str) -> str:
         """Build full URL for an MCP endpoint.

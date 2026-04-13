@@ -92,9 +92,21 @@ CREATE TABLE IF NOT EXISTS usage_daily (
     id           BIGSERIAL PRIMARY KEY,
     zitadel_sub  TEXT NOT NULL,
     day          DATE NOT NULL,
-    call_count   INTEGER NOT NULL DEFAULT 0,
+    call_count   BIGINT NOT NULL DEFAULT 0,
     UNIQUE (zitadel_sub, day)
 );
+
+-- Migrate call_count from INTEGER to BIGINT for existing installations
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'usage_daily'
+          AND column_name = 'call_count'
+          AND data_type = 'integer'
+    ) THEN
+        ALTER TABLE usage_daily ALTER COLUMN call_count TYPE BIGINT;
+    END IF;
+END $$;
 
 -- v7: Teams and invites
 CREATE TABLE IF NOT EXISTS teams (
@@ -239,9 +251,34 @@ class DatabaseManager:
         self._database_url = database_url or get_database_url()
         self._pool: Optional[asyncpg.Pool] = None
 
+    def _get_ssl_param(self):
+        """Determine SSL mode for the database connection.
+
+        Enforces SSL by default for non-localhost connections.
+        Override with DATABASE_SSL=disable (local dev only).
+        """
+        ssl_env = os.getenv("DATABASE_SSL", "").strip().lower()
+        if ssl_env == "disable":
+            return False
+
+        # Parse host from DATABASE_URL to detect local connections
+        from urllib.parse import urlparse
+        parsed = urlparse(self._database_url)
+        host = parsed.hostname or "localhost"
+        local_hosts = {"localhost", "127.0.0.1", "::1"}
+        if host in local_hosts:
+            # Local connections: SSL optional unless explicitly required
+            return True if ssl_env == "require" else False
+
+        # Remote connections: enforce SSL by default
+        return True
+
     async def connect(self):
         """Create connection pool and initialize schema."""
-        self._pool = await asyncpg.create_pool(self._database_url, min_size=2, max_size=10)
+        ssl_param = self._get_ssl_param()
+        self._pool = await asyncpg.create_pool(
+            self._database_url, min_size=2, max_size=10, ssl=ssl_param
+        )
         await self._init_schema()
         logger.info("Database connected and schema initialized")
 

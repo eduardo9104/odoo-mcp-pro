@@ -197,7 +197,12 @@ def register_admin_routes(app, db_manager):
         if not profile_id:
             return RedirectResponse(url="/admin/setup", status_code=302)
 
-        profile = await db_manager.get_profile(int(profile_id), user["sub"])
+        try:
+            profile_id_int = int(profile_id)
+        except (ValueError, TypeError):
+            return RedirectResponse(url="/admin/setup", status_code=302)
+
+        profile = await db_manager.get_profile(profile_id_int, user["sub"])
         if not profile:
             return RedirectResponse(url="/admin/setup", status_code=302)
 
@@ -231,8 +236,12 @@ def register_admin_routes(app, db_manager):
 
         profile_id = form.get("profile_id", "")
         if profile_id:
-            await db_manager.delete_profile(int(profile_id), user["sub"])
-            logger.info(f"User {user['email']} deleted profile {profile_id}")
+            try:
+                profile_id_int = int(profile_id)
+            except (ValueError, TypeError):
+                return RedirectResponse(url="/admin/setup", status_code=302)
+            await db_manager.delete_profile(profile_id_int, user["sub"])
+            logger.info(f"User {user['email']} deleted profile")
 
         return RedirectResponse(url="/admin/setup", status_code=302)
 
@@ -420,7 +429,7 @@ def register_admin_routes(app, db_manager):
             email=email,
             invited_by=user["sub"],
         )
-        logger.info(f"Team invite created by {user['email']} for {email} (token: {invite.invite_token[:8]}...)")
+        logger.info(f"Team invite created by {user['email']} for {email}")
         return RedirectResponse(url="/admin/team", status_code=302)
 
     @app.post("/team/revoke-invite")
@@ -440,8 +449,12 @@ def register_admin_routes(app, db_manager):
 
         invite_id = form.get("invite_id", "")
         if invite_id:
-            await db_manager.revoke_invite(int(invite_id), connection.team_id)
-            logger.info(f"Invite {invite_id} revoked by {user['email']}")
+            try:
+                invite_id_int = int(invite_id)
+            except (ValueError, TypeError):
+                return RedirectResponse(url="/admin/team", status_code=302)
+            await db_manager.revoke_invite(invite_id_int, connection.team_id)
+            logger.info(f"Invite revoked by {user['email']}")
 
         return RedirectResponse(url="/admin/team", status_code=302)
 
@@ -462,11 +475,15 @@ def register_admin_routes(app, db_manager):
 
         member_id = form.get("member_id", "")
         if member_id:
-            # Prevent removing yourself
-            if int(member_id) == connection.id:
+            try:
+                member_id_int = int(member_id)
+            except (ValueError, TypeError):
                 return RedirectResponse(url="/admin/team", status_code=302)
-            await db_manager.remove_member_from_team(int(member_id), connection.team_id)
-            logger.info(f"Member {member_id} removed by {user['email']}")
+            # Prevent removing yourself
+            if member_id_int == connection.id:
+                return RedirectResponse(url="/admin/team", status_code=302)
+            await db_manager.remove_member_from_team(member_id_int, connection.team_id)
+            logger.info(f"Member removed by {user['email']}")
 
         return RedirectResponse(url="/admin/team", status_code=302)
 

@@ -182,6 +182,7 @@ class OdooJSON2Connection:
             self._client = httpx.Client(
                 timeout=self.timeout,
                 follow_redirects=True,
+                verify=True,  # Explicitly enforce SSL certificate verification
             )
 
             # Test connection by fetching server version

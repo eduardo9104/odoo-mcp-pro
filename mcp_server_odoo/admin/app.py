@@ -10,11 +10,42 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from .auth import register_auth_routes
 from .routes import register_admin_routes
 
 logger = logging.getLogger(__name__)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add HTTP security headers to every response."""
+
+    def __init__(self, app: ASGIApp, is_production: bool = True):
+        super().__init__(app)
+        self._is_production = is_production
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "img-src 'self' data:; "
+            "font-src 'self'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none';"
+        )
+        if self._is_production:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
 
 # Templates directory
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -34,11 +65,16 @@ def create_admin_app(db_manager, registry=None, zitadel_issuer_url: str = ""):
     if not zitadel_issuer_url:
         zitadel_issuer_url = os.getenv("OAUTH_ISSUER_URL", "").strip()
 
+    is_production = os.getenv("ADMIN_COOKIE_SECURE", "true").lower() == "true"
+
     app = FastAPI(
         title="Odoo MCP Admin",
         docs_url=None,
         redoc_url=None,
     )
+
+    # Security headers on every response
+    app.add_middleware(SecurityHeadersMiddleware, is_production=is_production)
 
     # Set up Jinja2 templates with auto-escaping
     templates_env = Environment(
@@ -70,37 +106,37 @@ def create_admin_app(db_manager, registry=None, zitadel_issuer_url: str = ""):
         logger.info(f"Admin OAuth enabled (issuer: {zitadel_issuer_url})")
 
     if os.getenv("ADMIN_DEV_LOGIN", "").lower() in ("true", "1"):
-        # Dev-only login: supports ?role=admin|orgadmin|user for testing all roles
-        from .auth import set_session
-
-        @app.get("/login")
-        async def dev_login(request: Request):
-            from starlette.responses import RedirectResponse
-
-            role = request.query_params.get("role", "admin")
-
-            if role == "user":
-                sub = "regular-test-user"
-                email = "user@company-a.com"
-                is_admin = False
-            else:
-                sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "dev-admin")
-                email = os.getenv("ADMIN_BOOTSTRAP_EMAIL", "dev@localhost")
-                is_admin = True
-
-            redirect_url = "/admin/setup"
-            resp = RedirectResponse(url=redirect_url, status_code=302)
-            set_session(
-                resp,
-                {
-                    "sub": sub,
-                    "email": email,
-                    "is_admin": is_admin,
-                },
+        # Dev-only login: never allowed when production OAuth is configured
+        if zitadel_issuer_url:
+            logger.error(
+                "ADMIN_DEV_LOGIN=true is set but OAUTH_ISSUER_URL is also configured. "
+                "Dev login is disabled to protect the production OAuth setup. "
+                "Unset ADMIN_DEV_LOGIN to suppress this message."
             )
-            return resp
+        else:
+            from .auth import set_session
 
-        logger.warning("DEV LOGIN enabled at /admin/login — not for production!")
+            @app.get("/login")
+            async def dev_login(request: Request):
+                from starlette.responses import RedirectResponse
+
+                role = request.query_params.get("role", "admin")
+
+                if role == "user":
+                    sub = "regular-test-user"
+                    email = "user@company-a.com"
+                    is_admin = False
+                else:
+                    sub = os.getenv("ADMIN_BOOTSTRAP_SUB", "dev-admin")
+                    email = os.getenv("ADMIN_BOOTSTRAP_EMAIL", "dev@localhost")
+                    is_admin = True
+
+                redirect_url = "/admin/setup"
+                resp = RedirectResponse(url=redirect_url, status_code=302)
+                set_session(resp, {"sub": sub, "email": email, "is_admin": is_admin})
+                return resp
+
+            logger.warning("DEV LOGIN enabled at /admin/login — not for production!")
     elif not zitadel_issuer_url:
         logger.warning("No OAUTH_ISSUER_URL set — admin panel login will not work")
 

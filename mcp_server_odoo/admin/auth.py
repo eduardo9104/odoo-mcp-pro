@@ -7,9 +7,10 @@ import hashlib
 import logging
 import os
 import secrets
+import time
 from functools import wraps
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from fastapi import Request
@@ -25,8 +26,33 @@ SESSION_COOKIE = "admin_session"
 SESSION_MAX_AGE = 8 * 60 * 60
 
 # PKCE state storage (in-memory, per-process)
-# Maps state -> {code_verifier, redirect_uri}
+# Maps state -> {code_verifier, redirect_uri, created_at}
 _pending_auth: dict[str, dict] = {}
+
+# Pending auth entries expire after 10 minutes
+_PENDING_AUTH_TTL = 600
+
+
+def _cleanup_pending_auth() -> None:
+    """Remove expired pending auth state entries to prevent memory leak."""
+    now = time.monotonic()
+    expired = [
+        s for s, d in _pending_auth.items()
+        if now - d.get("created_at", 0) > _PENDING_AUTH_TTL
+    ]
+    for s in expired:
+        _pending_auth.pop(s, None)
+
+
+def _is_safe_next_url(url: str) -> bool:
+    """Return True only if url is a relative path within /admin/."""
+    if not url:
+        return False
+    parsed = urlparse(url)
+    # Reject absolute URLs, protocol-relative URLs, and paths outside /admin/
+    if parsed.scheme or parsed.netloc:
+        return False
+    return url.startswith("/admin/")
 
 
 def _get_serializer() -> URLSafeTimedSerializer:
@@ -199,6 +225,9 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
     @app.get("/login/start")
     async def admin_login_start(request: Request):
         """Start OAuth flow: redirect to Zitadel authorization endpoint."""
+        # Clean up expired pending states on each new login attempt
+        _cleanup_pending_auth()
+
         # Generate PKCE code verifier and challenge
         code_verifier = secrets.token_urlsafe(64)
         code_challenge = hashlib.sha256(code_verifier.encode("ascii")).digest()
@@ -210,12 +239,16 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
         state = secrets.token_urlsafe(32)
         redirect_uri = f"{base_url}/admin/callback"
 
-        # Store PKCE verifier keyed by state
+        # Validate and store next URL (reject absolute/external URLs)
         next_url = request.query_params.get("next", "")
+        if not _is_safe_next_url(next_url):
+            next_url = ""
+
         _pending_auth[state] = {
             "code_verifier": code_verifier,
             "redirect_uri": redirect_uri,
             "next": next_url,
+            "created_at": time.monotonic(),
         }
 
         # Build authorization URL
@@ -329,12 +362,9 @@ def register_auth_routes(app, db_manager, zitadel_issuer_url: str):
             "is_admin": is_admin,
         }
 
-        # Redirect to ?next= URL if set (e.g. invite link), otherwise setup page
+        # Redirect to ?next= URL if set and safe, otherwise setup page
         next_url = pending.get("next", "")
-        if next_url and next_url.startswith("/admin/"):
-            redirect_url = next_url
-        else:
-            redirect_url = "/admin/setup"
+        redirect_url = next_url if _is_safe_next_url(next_url) else "/admin/setup"
         response = RedirectResponse(url=redirect_url, status_code=302)
         set_session(response, session_data)
 
